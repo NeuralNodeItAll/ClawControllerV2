@@ -669,8 +669,18 @@ async def delete_task(task_id: str, db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Delete related records first to avoid foreign key constraint errors
+    # 1. Delete TaskActivity records (has FK constraint)
+    db.query(TaskActivity).filter(TaskActivity.task_id == task_id).delete()
+    
+    # 2. Clean up ActivityLog entries that reference this task (optional cleanup)
+    db.query(ActivityLog).filter(ActivityLog.task_id == task_id).delete()
+    
+    # 3. Delete the task (comments and deliverables will be cascade deleted)
     db.delete(task)
     db.commit()
+    
     await manager.broadcast({"type": "task_deleted", "data": {"id": task_id}})
     return {"ok": True}
 

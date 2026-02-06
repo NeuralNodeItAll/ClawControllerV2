@@ -239,3 +239,449 @@ INFO:     100.122.211.38:59071 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
 INFO:     100.122.211.38:59078 - "WebSocket /ws" [accepted]
 INFO:     connection open
 INFO:     127.0.0.1:57407 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed
+INFO:     100.122.211.38:59093 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59099 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     100.122.211.38:59093 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59097 - "GET /api/recurring HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "GET /api/recurring HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59096 - "GET /api/activity?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59095 - "GET /api/chat?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "GET /api/activity?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59094 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59097 - "GET /api/chat?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59100 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59095 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "OPTIONS /api/tasks/537be119-8c14-4b10-9671-af7cd40cc0e0/activity?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "GET /api/tasks/537be119-8c14-4b10-9671-af7cd40cc0e0/activity?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "OPTIONS /api/tasks/537be119-8c14-4b10-9671-af7cd40cc0e0 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59093 - "DELETE /api/tasks/537be119-8c14-4b10-9671-af7cd40cc0e0 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: NOT NULL constraint failed: task_activity.task_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/applications.py", line 1138, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 101, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 243, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/main.py", line 673, in delete_task
+    db.commit()
+    ~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 1311, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 1286, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/persistence.py", line 85, in save_obj
+    _emit_update_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        update,
+        ^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/persistence.py", line 912, in _emit_update_statements
+    c = connection.execute(
+        statement, multiparams, execution_options=execution_options
+    )
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) NOT NULL constraint failed: task_activity.task_id
+[SQL: UPDATE task_activity SET task_id=? WHERE task_activity.id = ?]
+[parameters: (None, 'ba9d39a4-0462-49fd-a1ef-4601e8baa8a0')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+INFO:     100.122.211.38:59095 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57411 - "POST /api/tasks/d7c57999-df24-49ff-ad9a-f6bf052953ba/activity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57413 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57415 - "GET /api/tasks/d7c57999-df24-49ff-ad9a-f6bf052953ba HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57417 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59113 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59113 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57420 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57422 - "POST /api/tasks/d7c57999-df24-49ff-ad9a-f6bf052953ba/activity HTTP/1.1" 200 OK
+Notified agent dev of task: BUG: Task delete button not working
+INFO:     127.0.0.1:57425 - "POST /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59120 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57428 - "POST /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57430 - "GET /api/tasks/32c8791f-588a-42f0-a995-fdd254298ad5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57434 - "GET /api/tasks/32c8791f-588a-42f0-a995-fdd254298ad5/activity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57437 - "GET /api/activity HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59188 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59188 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57441 - "POST /api/tasks/32c8791f-588a-42f0-a995-fdd254298ad5/activity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57446 - "POST /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59197 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57448 - "DELETE /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1936, in _exec_single_context
+    self.dialect.do_executemany(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor,
+        ^^^^^^^
+    ...<2 lines>...
+        context,
+        ^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/default.py", line 949, in do_executemany
+    cursor.executemany(statement, parameters)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: NOT NULL constraint failed: task_activity.task_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/applications.py", line 1138, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 101, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/fastapi/routing.py", line 243, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/main.py", line 673, in delete_task
+    db.commit()
+    ~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 1311, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 1286, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/persistence.py", line 85, in save_obj
+    _emit_update_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        update,
+        ^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/orm/persistence.py", line 912, in _emit_update_statements
+    c = connection.execute(
+        statement, multiparams, execution_options=execution_options
+    )
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1936, in _exec_single_context
+    self.dialect.do_executemany(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor,
+        ^^^^^^^
+    ...<2 lines>...
+        context,
+        ^^^^^^^^
+    )
+    ^
+  File "/Users/jarvisai/.openclaw/mission-control-v2/backend/venv/lib/python3.14/site-packages/sqlalchemy/engine/default.py", line 949, in do_executemany
+    cursor.executemany(statement, parameters)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) NOT NULL constraint failed: task_activity.task_id
+[SQL: UPDATE task_activity SET task_id=? WHERE task_activity.id = ?]
+[parameters: [(None, '51582058-8b30-4fb4-8225-22ab1d06d8bc'), (None, 'c4a5abbc-af0c-4d4d-88e4-17744643f79b')]]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+INFO:     100.122.211.38:59197 - "OPTIONS /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59197 - "GET /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity?limit=50 HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59197 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59197 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59210 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59210 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7160]
+INFO:     Started server process [7296]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     100.122.211.38:59217 - "WebSocket /ws" [accepted]
+INFO:     connection open
+ClawController API started
+Notified agent dev of task: Test Delete Task
+INFO:     127.0.0.1:57453 - "POST /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59219 - "OPTIONS /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59219 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57457 - "POST /api/tasks/5d262ef4-658a-4dad-9626-525e0777aaca/activity HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59222 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57459 - "DELETE /api/tasks/5d262ef4-658a-4dad-9626-525e0777aaca HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59225 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59225 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59240 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59240 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+Notified agent dev of task: Final Delete Test
+INFO:     127.0.0.1:57461 - "POST /api/tasks HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59240 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57465 - "POST /api/tasks/75390a2a-5f9f-4fe3-9132-d9edcb32b13d/activity HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59240 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57467 - "POST /api/tasks/75390a2a-5f9f-4fe3-9132-d9edcb32b13d/comments HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59248 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57469 - "DELETE /api/tasks/75390a2a-5f9f-4fe3-9132-d9edcb32b13d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57472 - "GET /api/tasks/75390a2a-5f9f-4fe3-9132-d9edcb32b13d HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57474 - "POST /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59266 - "GET /api/openclaw/status HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59266 - "GET /api/openclaw/agents HTTP/1.1" 200 OK
+Notified reviewer main of task needing review: BUG: Task delete button not working
+INFO:     127.0.0.1:57476 - "POST /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity HTTP/1.1" 200 OK
+INFO:     100.122.211.38:59269 - "GET /api/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57481 - "GET /api/tasks/df20b7bb-a975-4778-8c16-39ba5178c431/activity HTTP/1.1" 200 OK
