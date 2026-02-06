@@ -301,8 +301,8 @@ def notify_agent_of_task(task):
 ## Log Activity
 curl -X POST http://localhost:8000/api/tasks/{task.id}/activity -H "Content-Type: application/json" -d '{{"agent_id": "{task.assignee_id}", "message": "YOUR_UPDATE"}}'
 
-## When Done
-curl -X PATCH http://localhost:8000/api/tasks/{task.id} -H "Content-Type: application/json" -d '{{"status": "DONE"}}'"""
+## When Complete
+Post an activity with 'completed' or 'done' in the message - the system will auto-transition to REVIEW for Jarvis to verify."""
 
     try:
         subprocess.Popen(
