@@ -262,7 +262,12 @@ INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE
 
 ### Creating Tasks
 
-**Via UI:** Click **+ New Task** button
+Tasks can be created from multiple surfaces:
+
+- **Dashboard:** Click the **+ New Task** button
+- **Discord:** Message your OpenClaw agent with a task description
+- **Telegram:** Send tasks via your connected Telegram bot
+- **Squad Chat:** Use the built-in chat to create and assign tasks
 
 **Via API:**
 ```bash
@@ -491,15 +496,6 @@ curl -X POST http://localhost:8000/api/tasks/{TASK_ID}/activity \
 When finished, say "completed" in your activity to move to REVIEW.
 ```
 
-### Without OpenClaw
-
-ClawController can work standalone with any agent framework:
-
-1. Create agents manually in the UI or via API
-2. Have agents poll `GET /api/tasks?assignee_id={agent_id}&status=ASSIGNED`
-3. Log progress via `POST /api/tasks/{id}/activity`
-4. Update status via `PATCH /api/tasks/{id}`
-
 ---
 
 ## Customization
@@ -575,12 +571,6 @@ cd frontend
 npm run build
 
 # Serve with nginx or copy dist/ to your static host
-```
-
-### Docker (Coming Soon)
-
-```dockerfile
-# Dockerfile example - contributions welcome!
 ```
 
 ### Environment Recommendations
