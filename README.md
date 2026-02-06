@@ -1,10 +1,17 @@
 # ClawController
 
-**Mission Control for AI Agent Teams**
+**A Control Center for [OpenClaw](https://openclaw.ai) Agents**
 
-A task management dashboard designed for orchestrating multiple AI agents. Track tasks, monitor agent status, manage workflows, and coordinate your AI workforce from a single interface.
+Keep your AI agents organized and accountable. ClawController gives you visibility into what your OpenClaw agents are doing, assigns them structured work, and tracks their progress — so you're not just hoping they're on task.
 
-Whether you're running a trading operation with specialized agents, managing a SaaS product with dev/support bots, or coordinating a creative agency with writer/designer agents, ClawController gives you visibility and control.
+**The problem:** You've got multiple OpenClaw agents running, but how do you know what they're actually working on? Are they stuck? Did they finish? What's next?
+
+**The solution:** ClawController provides a visual dashboard where you can:
+- See all your agents and their current status at a glance
+- Assign structured tasks with clear deliverables
+- Track progress through a defined workflow
+- Route work to the right agent automatically
+- Review completed work before closing tasks
 
 ---
 
@@ -26,20 +33,29 @@ Whether you're running a trading operation with specialized agents, managing a S
 
 ---
 
+## Why ClawController?
+
+Running multiple OpenClaw agents is powerful, but it can get chaotic:
+- Agents work in isolated sessions — you lose track of who's doing what
+- No central place to see progress across all agents
+- Work gets duplicated or dropped
+- Hard to review output before it ships
+
+ClawController fixes this by giving you **one place** to manage the work, not the agents themselves. OpenClaw handles the AI. ClawController handles the workflow.
+
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| **Kanban Board** | Drag-and-drop task management with customizable columns |
-| **Agent Dashboard** | Monitor all agents with live status indicators |
-| **Squad Chat** | Route messages to agents with @mentions |
-| **Activity Feed** | Real-time task activity and agent updates |
-| **Recurring Tasks** | Schedule repeating tasks with pause/resume |
-| **Auto-Assignment** | Rules-based automatic task routing by tag |
-| **Task Lifecycle** | INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE |
-| **Announcements** | Broadcast updates to your team |
-| **Dark Theme** | "Cyber Claw" theme with orange accents |
-| **WebSocket Updates** | Real-time UI updates without refresh |
+| **Agent Status** | See which OpenClaw agents are online, working, or idle |
+| **Kanban Board** | Drag-and-drop tasks through INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE |
+| **Task Assignment** | Assign work to specific agents with descriptions and due dates |
+| **Activity Logging** | Agents report progress; you see it in real-time |
+| **Auto-Assignment** | Route tasks to agents automatically based on tags |
+| **Review Gate** | Work goes to REVIEW before DONE — nothing ships without approval |
+| **Squad Chat** | @mention agents to send them messages directly |
+| **Recurring Tasks** | Schedule repeating work on cron schedules |
+| **WebSocket Updates** | Dashboard updates live as agents work |
 
 ---
 
@@ -425,31 +441,49 @@ ws.onmessage = (event) => {
 
 ## OpenClaw Integration
 
-ClawController can integrate with [OpenClaw](https://openclaw.ai) for live agent status and message routing.
+ClawController is built for [OpenClaw](https://openclaw.ai). Here's how they connect:
 
-### Setup
+### Live Agent Status
 
-1. Set the config path in `backend/main.py`:
+ClawController reads your OpenClaw config to show real agent status:
+
 ```python
+# In backend/main.py
 OPENCLAW_CONFIG_PATH = os.path.expanduser("~/.openclaw/config.yaml")
 ```
 
-2. The `/api/agents` endpoint will merge database agents with live OpenClaw agent status.
+Agents defined in your OpenClaw config appear automatically with live status indicators.
 
-### Agent Routing
+### Routing Messages to Agents
 
-When using Squad Chat, messages to agents are routed via:
+When you @mention an agent in Squad Chat, ClawController routes the message via:
 ```bash
-openclaw agent --agent {agent_id} --message "{message}"
+openclaw agent --agent {agent_id} --message "{your message}"
+```
+
+This wakes the agent in its own session and delivers your message.
+
+### Agents Reporting Back
+
+Configure your OpenClaw agents to log progress to ClawController. Add these instructions to your agent's task:
+
+```
+Log your progress:
+curl -X POST http://localhost:8000/api/tasks/{TASK_ID}/activity \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "YOUR_AGENT_ID", "message": "YOUR_UPDATE"}'
+
+When finished, say "completed" in your activity to move to REVIEW.
 ```
 
 ### Without OpenClaw
 
-ClawController works standalone. Agents are stored in the local SQLite database and you can integrate with any agent framework by:
+ClawController can work standalone with any agent framework:
 
-1. Having your agents poll `GET /api/tasks?assignee_id={agent_id}&status=ASSIGNED`
-2. Logging progress via `POST /api/tasks/{id}/activity`
-3. Updating status via `PATCH /api/tasks/{id}`
+1. Create agents manually in the UI or via API
+2. Have agents poll `GET /api/tasks?assignee_id={agent_id}&status=ASSIGNED`
+3. Log progress via `POST /api/tasks/{id}/activity`
+4. Update status via `PATCH /api/tasks/{id}`
 
 ---
 
@@ -573,8 +607,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
+## What is OpenClaw?
+
+[OpenClaw](https://openclaw.ai) is an open-source AI agent framework that lets you run persistent AI assistants with memory, tools, and multi-channel access (Discord, Telegram, etc.). 
+
+ClawController adds the missing piece: **structured task management** so your agents work on what matters, not whatever they feel like.
+
 ## Credits
 
-Built for the [OpenClaw](https://openclaw.ai) ecosystem.
+Built for the [OpenClaw](https://openclaw.ai) community.
 
 **Author:** Mike Donan ([@mdonan90](https://github.com/mdonan90))
