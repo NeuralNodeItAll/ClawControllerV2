@@ -4,31 +4,64 @@
 
 A task management dashboard designed for orchestrating multiple AI agents. Track tasks, monitor agent status, manage workflows, and coordinate your AI workforce from a single interface.
 
-![ClawController Dashboard](https://clawcontroller.com/screenshots/saas-dashboard.png)
+Whether you're running a trading operation with specialized agents, managing a SaaS product with dev/support bots, or coordinating a creative agency with writer/designer agents, ClawController gives you visibility and control.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Configuration](#configuration)
+- [Creating Agents](#creating-agents)
+- [Task Workflow](#task-workflow)
+- [Auto-Assignment Rules](#auto-assignment-rules)
+- [Recurring Tasks](#recurring-tasks)
+- [API Reference](#api-reference)
+- [OpenClaw Integration](#openclaw-integration)
+- [Customization](#customization)
+- [Contributing](#contributing)
+
+---
 
 ## Features
 
-- **Kanban Board** — Drag-and-drop task management with INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE workflow
-- **Agent Management** — Create, edit, and monitor AI agents with live status indicators
-- **Squad Chat** — Route messages to agents with @mentions
-- **Activity Feed** — Real-time task activity and agent updates
-- **Recurring Tasks** — Schedule repeating tasks with pause/resume
-- **Auto-Assignment** — Configure rules to auto-assign tasks by tag
-- **Announcements** — Broadcast updates to your team
-- **Dark Theme** — "Cyber Claw" theme with orange accents
+| Feature | Description |
+|---------|-------------|
+| **Kanban Board** | Drag-and-drop task management with customizable columns |
+| **Agent Dashboard** | Monitor all agents with live status indicators |
+| **Squad Chat** | Route messages to agents with @mentions |
+| **Activity Feed** | Real-time task activity and agent updates |
+| **Recurring Tasks** | Schedule repeating tasks with pause/resume |
+| **Auto-Assignment** | Rules-based automatic task routing by tag |
+| **Task Lifecycle** | INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE |
+| **Announcements** | Broadcast updates to your team |
+| **Dark Theme** | "Cyber Claw" theme with orange accents |
+| **WebSocket Updates** | Real-time UI updates without refresh |
 
-## Tech Stack
+---
 
-- **Frontend:** React + Vite + Tailwind CSS
-- **Backend:** FastAPI + SQLite + SQLAlchemy
-- **Real-time:** WebSockets for live updates
+## Screenshots
+
+### Main Dashboard
+The kanban board shows all tasks organized by status. Drag tasks between columns to update their state.
+
+### Agent Panel
+Monitor your agents at a glance. Green indicators show active agents, gray shows offline.
+
+### Squad Chat
+Send messages to specific agents using @mentions. Messages route through your agent framework.
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+
-- Python 3.10+
+- **Node.js 18+** (for frontend)
+- **Python 3.10+** (for backend)
 
 ### Installation
 
@@ -40,7 +73,7 @@ cd ClawController
 # Backend setup
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Frontend setup
@@ -51,13 +84,11 @@ npm install
 ### Running
 
 **Option 1: Use the start script**
-
 ```bash
 ./start.sh
 ```
 
 **Option 2: Manual start**
-
 ```bash
 # Terminal 1 - Backend
 cd backend
@@ -69,39 +100,270 @@ cd frontend
 npm run dev -- --port 5001 --host 0.0.0.0
 ```
 
-Access the dashboard at `http://localhost:5001`
+**Access the dashboard:** http://localhost:5001
 
 ### Stopping
-
 ```bash
 ./stop.sh
 ```
 
+---
+
+## Architecture
+
+```
+ClawController/
+├── backend/
+│   ├── main.py          # FastAPI application + all endpoints
+│   ├── models.py        # SQLAlchemy models (Task, Agent, etc.)
+│   ├── database.py      # Database connection setup
+│   └── requirements.txt # Python dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx      # Main React component
+│   │   ├── components/  # UI components (Header, Kanban, etc.)
+│   │   └── store/       # Zustand state management
+│   └── package.json     # Node dependencies
+├── start.sh             # Start both services
+└── stop.sh              # Stop both services
+```
+
+### Tech Stack
+
+- **Frontend:** React 18 + Vite + Tailwind CSS + Zustand
+- **Backend:** FastAPI + SQLite + SQLAlchemy
+- **Real-time:** WebSockets for live updates
+
+---
+
 ## Configuration
 
-### Auto-Assignment Rules
+### Environment Variables
 
-Edit `backend/main.py` to configure automatic task assignment by tag:
+Create a `.env` file in the backend directory (optional):
+
+```env
+# Database path (default: ./data/mission_control.db)
+DATABASE_URL=sqlite:///./data/mission_control.db
+
+# OpenClaw config path for live agent status
+OPENCLAW_CONFIG_PATH=~/.openclaw/config.yaml
+```
+
+### Frontend Configuration
+
+Edit `frontend/src/App.jsx` to change the API URL:
+
+```javascript
+const API_BASE = 'http://localhost:8000/api';
+```
+
+For production, point this to your backend URL.
+
+---
+
+## Creating Agents
+
+### Via the UI
+
+1. Click the **Agents** tab in the sidebar
+2. Click **+ New Agent**
+3. Fill in:
+   - **ID:** Unique identifier (e.g., `dev`, `trader`, `writer`)
+   - **Name:** Display name (e.g., "Dev Agent", "Trading Bot")
+   - **Role:** One of: `lead`, `developer`, `analyst`, `specialist`, `support`
+   - **Avatar:** Emoji for the agent (e.g., 🤖, 💻, 📈)
+4. Click **Create**
+
+### Via the API
+
+```bash
+curl -X POST http://localhost:8000/api/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "dev",
+    "name": "Dev Agent",
+    "role": "developer",
+    "avatar": "💻",
+    "status": "idle"
+  }'
+```
+
+### Agent Roles
+
+| Role | Typical Use |
+|------|-------------|
+| `lead` | Orchestrator agent that delegates to others |
+| `developer` | Coding, debugging, technical tasks |
+| `analyst` | Research, data analysis, reporting |
+| `specialist` | Domain-specific work (trading, design, etc.) |
+| `support` | Customer service, documentation |
+
+### Agent Statuses
+
+| Status | Indicator | Meaning |
+|--------|-----------|---------|
+| `working` | 🟢 Green | Currently processing a task |
+| `idle` | 🟡 Yellow | Available, waiting for work |
+| `offline` | ⚫ Gray | Not running |
+| `error` | 🔴 Red | Encountered an error |
+
+---
+
+## Task Workflow
+
+### Task Lifecycle
+
+```
+INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE
+```
+
+| Status | Description | Trigger |
+|--------|-------------|---------|
+| **INBOX** | Unassigned, needs triage | Default for new tasks |
+| **ASSIGNED** | Assigned to agent, not started | Manual or auto-assignment |
+| **IN_PROGRESS** | Agent actively working | First activity log entry |
+| **REVIEW** | Work complete, needs approval | Agent says "completed/done/finished" |
+| **DONE** | Approved and closed | Manual approval only |
+
+### Creating Tasks
+
+**Via UI:** Click **+ New Task** button
+
+**Via API:**
+```bash
+curl -X POST http://localhost:8000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Build login page",
+    "description": "Create a responsive login form with OAuth support",
+    "priority": "high",
+    "tags": ["coding", "frontend"],
+    "assignee_id": "dev"
+  }'
+```
+
+### Task Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Task title (required) |
+| `description` | string | Detailed description |
+| `priority` | enum | `low`, `medium`, `high`, `urgent` |
+| `tags` | array | Labels for categorization |
+| `assignee_id` | string | Agent ID to assign |
+| `due_date` | datetime | Optional deadline |
+| `status` | enum | Current status |
+
+### Logging Activity
+
+Agents should log their progress:
+
+```bash
+curl -X POST http://localhost:8000/api/tasks/{task_id}/activity \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "dev",
+    "message": "Started working on the login form layout"
+  }'
+```
+
+Activity keywords that trigger status changes:
+- **→ IN_PROGRESS:** Any activity on an ASSIGNED task
+- **→ REVIEW:** "completed", "done", "finished", "ready for review"
+
+---
+
+## Auto-Assignment Rules
+
+Configure automatic task routing based on tags.
+
+### Setup
+
+Edit `backend/main.py`:
 
 ```python
+# Auto-assignment rules: tag -> agent_id
 ASSIGNMENT_RULES = {
     "coding": "dev",
+    "frontend": "dev",
+    "backend": "dev",
     "trading": "trader",
+    "analysis": "analyst",
     "marketing": "brand",
-    # Add your rules here
+    "writing": "writer",
+    "design": "designer",
+    "support": "support",
 }
 ```
 
-### OpenClaw Integration
+### How It Works
 
-ClawController integrates with [OpenClaw](https://openclaw.ai) for live agent status. Set your OpenClaw workspace path:
+1. When a task is created with tags, the system checks each tag against the rules
+2. First matching rule wins
+3. Task is automatically assigned to that agent
+4. Status changes from INBOX to ASSIGNED
 
-```python
-# In backend/main.py
-OPENCLAW_CONFIG_PATH = os.path.expanduser("~/.openclaw/config.yaml")
+### Example
+
+```bash
+# This task will auto-assign to "dev" because of the "coding" tag
+curl -X POST http://localhost:8000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Fix authentication bug",
+    "tags": ["coding", "urgent"]
+  }'
 ```
 
-If OpenClaw is not installed, ClawController uses the internal agent database.
+---
+
+## Recurring Tasks
+
+Schedule tasks that repeat on a schedule.
+
+### Creating Recurring Tasks
+
+**Via UI:** Tasks panel → Recurring Tasks tab → + New Recurring Task
+
+**Via API:**
+```bash
+curl -X POST http://localhost:8000/api/recurring-tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Daily standup summary",
+    "description": "Compile and post daily progress report",
+    "schedule": "0 9 * * 1-5",
+    "assignee_id": "lead",
+    "tags": ["daily", "reporting"],
+    "enabled": true
+  }'
+```
+
+### Schedule Format (Cron)
+
+```
+┌───────────── minute (0-59)
+│ ┌───────────── hour (0-23)
+│ │ ┌───────────── day of month (1-31)
+│ │ │ ┌───────────── month (1-12)
+│ │ │ │ ┌───────────── day of week (0-6, Sun=0)
+│ │ │ │ │
+* * * * *
+```
+
+**Examples:**
+- `0 9 * * 1-5` — 9 AM, Monday-Friday
+- `0 */2 * * *` — Every 2 hours
+- `0 0 1 * *` — First day of each month at midnight
+
+### Managing Recurring Tasks
+
+- **Pause:** `PATCH /api/recurring-tasks/{id}` with `{"enabled": false}`
+- **View runs:** `GET /api/recurring-tasks/{id}/runs`
+- **Delete:** `DELETE /api/recurring-tasks/{id}`
+
+---
 
 ## API Reference
 
@@ -109,58 +371,207 @@ If OpenClaw is not installed, ClawController uses the internal agent database.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/tasks` | List all tasks |
-| POST | `/api/tasks` | Create a task |
-| GET | `/api/tasks/{id}` | Get task by ID |
-| PATCH | `/api/tasks/{id}` | Update task |
-| DELETE | `/api/tasks/{id}` | Delete task |
-| POST | `/api/tasks/{id}/activity` | Log activity |
-| GET | `/api/tasks/{id}/activity` | Get activity history |
+| `GET` | `/api/tasks` | List all tasks |
+| `POST` | `/api/tasks` | Create task |
+| `GET` | `/api/tasks/{id}` | Get task |
+| `PATCH` | `/api/tasks/{id}` | Update task |
+| `DELETE` | `/api/tasks/{id}` | Delete task |
+| `POST` | `/api/tasks/{id}/activity` | Log activity |
+| `GET` | `/api/tasks/{id}/activity` | Get activity |
 
 ### Agents
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/agents` | List all agents |
-| POST | `/api/agents` | Create agent |
-| DELETE | `/api/agents/{id}` | Delete agent |
+| `GET` | `/api/agents` | List all agents |
+| `POST` | `/api/agents` | Create agent |
+| `PATCH` | `/api/agents/{id}` | Update agent |
+| `DELETE` | `/api/agents/{id}` | Delete agent |
 
 ### Chat
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/chat` | Get chat history |
-| POST | `/api/chat` | Send message |
-| POST | `/api/chat/send-to-agent` | Route to specific agent |
+| `GET` | `/api/chat` | Get messages |
+| `POST` | `/api/chat` | Send message |
+| `POST` | `/api/chat/send-to-agent` | Route to agent |
 
-## Task Lifecycle
+### Recurring Tasks
 
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/recurring-tasks` | List all |
+| `POST` | `/api/recurring-tasks` | Create |
+| `PATCH` | `/api/recurring-tasks/{id}` | Update |
+| `DELETE` | `/api/recurring-tasks/{id}` | Delete |
+| `GET` | `/api/recurring-tasks/{id}/runs` | Run history |
+
+### WebSocket
+
+Connect to `ws://localhost:8000/ws` for real-time updates:
+
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  // Handle: task_created, task_updated, agent_status, chat_message, etc.
+};
 ```
-INBOX → ASSIGNED → IN_PROGRESS → REVIEW → DONE
+
+---
+
+## OpenClaw Integration
+
+ClawController can integrate with [OpenClaw](https://openclaw.ai) for live agent status and message routing.
+
+### Setup
+
+1. Set the config path in `backend/main.py`:
+```python
+OPENCLAW_CONFIG_PATH = os.path.expanduser("~/.openclaw/config.yaml")
 ```
 
-- **INBOX**: Unassigned tasks waiting for triage
-- **ASSIGNED**: Task assigned to an agent, not started
-- **IN_PROGRESS**: Agent actively working (auto-triggers on first activity)
-- **REVIEW**: Work complete, awaiting human approval (auto-triggers on "completed/done/finished")
-- **DONE**: Approved and closed (manual transition only)
+2. The `/api/agents` endpoint will merge database agents with live OpenClaw agent status.
 
-## Screenshots
+### Agent Routing
 
-| Trading Dashboard | SaaS Operations | Agency Workflow |
-|-------------------|-----------------|-----------------|
-| ![Trading](https://clawcontroller.com/screenshots/trading-dashboard.png) | ![SaaS](https://clawcontroller.com/screenshots/saas-dashboard.png) | ![Agency](https://clawcontroller.com/screenshots/agency-dashboard.png) |
+When using Squad Chat, messages to agents are routed via:
+```bash
+openclaw agent --agent {agent_id} --message "{message}"
+```
+
+### Without OpenClaw
+
+ClawController works standalone. Agents are stored in the local SQLite database and you can integrate with any agent framework by:
+
+1. Having your agents poll `GET /api/tasks?assignee_id={agent_id}&status=ASSIGNED`
+2. Logging progress via `POST /api/tasks/{id}/activity`
+3. Updating status via `PATCH /api/tasks/{id}`
+
+---
+
+## Customization
+
+### Theming
+
+The "Cyber Claw" theme uses Tailwind CSS. Edit `frontend/tailwind.config.js`:
+
+```javascript
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#F97316',  // Orange accent
+        background: '#09090B',  // Near black
+        surface: '#18181B',  // Card backgrounds
+      }
+    }
+  }
+}
+```
+
+### Adding Task Statuses
+
+Edit `backend/models.py`:
+
+```python
+class TaskStatus(str, Enum):
+    INBOX = "INBOX"
+    ASSIGNED = "ASSIGNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    BLOCKED = "BLOCKED"  # Add new status
+    REVIEW = "REVIEW"
+    DONE = "DONE"
+```
+
+Then update the frontend kanban columns in `App.jsx`.
+
+### Custom Agent Roles
+
+Edit `backend/models.py`:
+
+```python
+class AgentRole(str, Enum):
+    LEAD = "lead"
+    DEVELOPER = "developer"
+    ANALYST = "analyst"
+    SPECIALIST = "specialist"
+    SUPPORT = "support"
+    CREATIVE = "creative"  # Add new role
+```
+
+### Adding New API Endpoints
+
+Add to `backend/main.py`:
+
+```python
+@app.get("/api/custom-endpoint")
+def custom_endpoint(db: Session = Depends(get_db)):
+    # Your logic here
+    return {"status": "ok"}
+```
+
+---
+
+## Deployment
+
+### Production Build
+
+```bash
+# Build frontend
+cd frontend
+npm run build
+
+# Serve with nginx or copy dist/ to your static host
+```
+
+### Docker (Coming Soon)
+
+```dockerfile
+# Dockerfile example - contributions welcome!
+```
+
+### Environment Recommendations
+
+- **Backend:** Run with gunicorn + uvicorn workers
+- **Frontend:** Serve from CDN or nginx
+- **Database:** SQLite works for small teams; PostgreSQL for scale
+
+---
 
 ## Contributing
 
-Contributions welcome! Please open an issue or PR.
+Contributions welcome!
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development
+
+```bash
+# Run with hot reload
+cd backend && uvicorn main:app --reload
+cd frontend && npm run dev
+```
+
+### Code Style
+
+- **Python:** Follow PEP 8
+- **JavaScript:** ESLint + Prettier
+
+---
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Links
+---
 
-- [Website](https://clawcontroller.com)
-- [Documentation](https://clawcontroller.com/docs)
-- [OpenClaw](https://openclaw.ai)
+## Credits
+
+Built for the [OpenClaw](https://openclaw.ai) ecosystem.
+
+**Author:** Mike Donan ([@mdonan90](https://github.com/mdonan90))
