@@ -632,4 +632,4 @@ ClawController adds the missing piece: **structured task management** so your ag
 
 Built for the [OpenClaw](https://openclaw.ai) community.
 
-**Author:** Mike Donan ([@mdonan90](https://github.com/mdonan90))
+**Author:** Mike O'Nan ([@mdonan90](https://github.com/mdonan90))
