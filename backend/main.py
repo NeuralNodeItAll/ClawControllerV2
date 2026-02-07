@@ -1794,12 +1794,14 @@ def sync_openclaw_crons(db: Session = Depends(get_db)):
     return {"synced": synced, "total": len(synced)}
 
 
-def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local_tasks, db: Session):
+def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local_tasks, db: Session, deleted_ocids: set = None):
     """Push local openclaw tasks to a single remote agent's jobs.json.
 
     Read-modify-write: fetches current remote jobs, merges local changes, writes back.
     Preserves all fields ClawControllerV2 doesn't manage (sessionTarget, wakeMode, delivery, state, agentId).
     """
+    if deleted_ocids is None:
+        deleted_ocids = set()
     base_url = api_url.rstrip('/')
     headers = {"Authorization": f"Bearer {gateway_token}"}
 
@@ -1837,7 +1839,10 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
         job_id = job.get("id", "")
         local_rt = local_by_ocid.get(job_id)
 
-        if local_rt:
+        if job_id in deleted_ocids:
+            # Explicitly deleted locally — remove from remote
+            continue
+        elif local_rt:
             # Matched - update fields from local
             matched_ocids.add(job_id)
             job["name"] = local_rt.title
@@ -1848,10 +1853,9 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
                 job.setdefault("payload", {})["message"] = local_rt.description
             job["updatedAtMs"] = int(time.time() * 1000)
             updated_jobs.append(job)
-        elif job_id not in local_by_ocid:
-            # Not previously synced (no local task has this ocid) — keep it
+        else:
+            # Not matched locally and not explicitly deleted — keep it (new remote job)
             updated_jobs.append(job)
-        # else: was synced but deleted locally — omit it (effectively deleting from remote)
 
     # 3. Create new remote jobs for local openclaw tasks with no remote match
     for ocid, rt in local_by_ocid.items():
@@ -1919,8 +1923,15 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
         print(f"Push: failed to write crons to {api_url}: {e}")
 
 
-def push_cron_to_openclaw(db: Session):
-    """Push local openclaw recurring tasks to all configured remote agents."""
+def push_cron_to_openclaw(db: Session, deleted_ocids: set = None):
+    """Push local openclaw recurring tasks to all configured remote agents.
+
+    deleted_ocids: set of openclaw job IDs that were just deleted locally
+                   and should be explicitly removed from remote.
+    """
+    if deleted_ocids is None:
+        deleted_ocids = set()
+
     home = Path.home()
     config_path = home / ".openclaw" / "openclaw.json"
 
@@ -1935,7 +1946,9 @@ def push_cron_to_openclaw(db: Session):
 
     # Gather all local recurring tasks with openclaw tags
     all_openclaw_tasks = db.query(RecurringTask).filter(RecurringTask.tags.like('%openclaw%')).all()
-    if not all_openclaw_tasks:
+
+    # Still push even if no local tasks remain — we may need to delete remote jobs
+    if not all_openclaw_tasks and not deleted_ocids:
         return
 
     agents_list = config.get("agents", {}).get("list", [])
@@ -1971,8 +1984,8 @@ def push_cron_to_openclaw(db: Session):
                 # Single agent setup: push all openclaw tasks
                 agent_tasks.append(rt)
 
-        if agent_tasks:
-            _push_to_single_agent(api_url, gateway_token, agent_id, agent_tasks, db)
+        if agent_tasks or deleted_ocids:
+            _push_to_single_agent(api_url, gateway_token, agent_id, agent_tasks, db, deleted_ocids)
 
 
 @app.get("/api/recurring")
@@ -2145,12 +2158,13 @@ async def delete_recurring_task(recurring_id: str, db: Session = Depends(get_db)
     if not rt:
         raise HTTPException(status_code=404, detail="Recurring task not found")
 
-    # Capture tags before delete for push decision
+    # Capture tags and ocid before delete for push
     try:
         rt_tags = json.loads(rt.tags) if rt.tags else []
     except (json.JSONDecodeError, TypeError):
         rt_tags = []
     has_openclaw = "openclaw" in rt_tags or any(t.startswith("ocid:") for t in rt_tags)
+    deleted_ocids = {t[5:] for t in rt_tags if t.startswith("ocid:")}
 
     # Find and delete all incomplete tasks spawned from this recurring task
     runs = db.query(RecurringTaskRun).filter(
@@ -2173,9 +2187,9 @@ async def delete_recurring_task(recurring_id: str, db: Session = Depends(get_db)
     db.delete(rt)
     db.commit()
 
-    # Push to openclaw after delete if the task had openclaw tags
+    # Push to openclaw after delete — pass deleted ocids so remote jobs are removed
     if has_openclaw:
-        push_cron_to_openclaw(db)
+        push_cron_to_openclaw(db, deleted_ocids=deleted_ocids)
 
     # Broadcast deletions
     for task_id in deleted_task_ids:
