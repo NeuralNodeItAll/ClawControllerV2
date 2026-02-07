@@ -2116,7 +2116,28 @@ async def update_recurring_task(recurring_id: str, task_data: RecurringTaskUpdat
     if task_data.schedule_value is not None:
         rt.schedule_value = task_data.schedule_value
     if task_data.schedule_time is not None:
-        rt.schedule_time = task_data.schedule_time
+        # Preserve existing timezone if the new value is a plain HH:MM time
+        existing_tz = None
+        if rt.schedule_time and rt.schedule_time.startswith("tz:"):
+            existing_tz = rt.schedule_time[3:]
+        if task_data.schedule_time and not task_data.schedule_time.startswith("tz:"):
+            # Plain HH:MM time from UI — update cron expression and preserve tz
+            try:
+                parts = task_data.schedule_time.split(":")
+                hour = int(parts[0])
+                minute = int(parts[1]) if len(parts) > 1 else 0
+                sched_type = task_data.schedule_type or rt.schedule_type
+                if sched_type in ("daily", "cron"):
+                    rt.schedule_value = f"{minute} {hour} * * *"
+                    rt.schedule_type = "cron"
+                if existing_tz:
+                    rt.schedule_time = f"tz:{existing_tz}"
+                else:
+                    rt.schedule_time = task_data.schedule_time
+            except (ValueError, IndexError):
+                rt.schedule_time = task_data.schedule_time
+        else:
+            rt.schedule_time = task_data.schedule_time
     if task_data.is_active is not None:
         rt.is_active = task_data.is_active
         
