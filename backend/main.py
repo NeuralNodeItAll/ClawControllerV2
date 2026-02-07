@@ -1857,6 +1857,8 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
             job["enabled"] = local_rt.is_active
             if local_rt.schedule_value:
                 job.setdefault("schedule", {})["expr"] = local_rt.schedule_value
+            if local_rt.schedule_time and local_rt.schedule_time.startswith("tz:"):
+                job.setdefault("schedule", {})["tz"] = local_rt.schedule_time[3:]
             if local_rt.description:
                 job.setdefault("payload", {})["message"] = local_rt.description
             job["updatedAtMs"] = int(time.time() * 1000)
@@ -1890,14 +1892,18 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
         # Use existing ocid or generate a new one
         job_id = existing_ocid or str(uuid.uuid4())[:8]
 
+        schedule_obj = {
+            "kind": "cron",
+            "expr": rt.schedule_value or "0 9 * * *",
+        }
+        if rt.schedule_time and rt.schedule_time.startswith("tz:"):
+            schedule_obj["tz"] = rt.schedule_time[3:]
+
         new_job = {
             "id": job_id,
             "name": rt.title,
             "enabled": rt.is_active,
-            "schedule": {
-                "kind": "cron",
-                "expr": rt.schedule_value or "0 9 * * *",
-            },
+            "schedule": schedule_obj,
             "payload": {
                 "message": rt.description or rt.title,
             },
