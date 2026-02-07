@@ -1199,6 +1199,7 @@ async def send_chat_message(message_data: ChatMessageCreate, db: Session = Depen
 # ============ OpenClaw Agent Chat ============
 import subprocess
 import re
+import requests
 
 class SendToAgentRequest(BaseModel):
     agent_id: str
@@ -1208,7 +1209,7 @@ def get_agent_info(agent_id: str, db: Session) -> dict:
     """Get agent info from OpenClaw config or fallback."""
     home = Path.home()
     config_path = home / ".openclaw" / "openclaw.json"
-    
+
     # First try OpenClaw config
     if config_path.exists():
         try:
@@ -1225,30 +1226,97 @@ def get_agent_info(agent_id: str, db: Session) -> dict:
                     }
         except:
             pass
-    
+
     # Fallback to database
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if agent:
         return {"id": agent.id, "name": agent.name, "avatar": agent.avatar}
-    
+
     # Ultimate fallback
     return {"id": agent_id, "name": agent_id.title(), "avatar": "🤖"}
 
+def get_agent_remote_config(agent_id: str) -> dict | None:
+    """Check if an agent is configured as remote (running on moltworker)."""
+    home = Path.home()
+    config_path = home / ".openclaw" / "openclaw.json"
+
+    if not config_path.exists():
+        return None
+
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+        agents_list = config.get("agents", {}).get("list", [])
+        for agent in agents_list:
+            if agent.get("id") == agent_id:
+                remote = agent.get("remote")
+                if remote and remote.get("api_url"):
+                    return remote
+        return None
+    except:
+        return None
+
+def send_message_to_remote_agent(api_url: str, gateway_token: str, message: str, timeout: int = 120) -> str:
+    """Send a message to a remote agent via HTTP API."""
+    try:
+        # Expand environment variables in gateway token
+        if gateway_token.startswith("${") and gateway_token.endswith("}"):
+            env_var = gateway_token[2:-1]
+            gateway_token = os.environ.get(env_var, "")
+
+        if not gateway_token:
+            return "⚠️ Remote gateway token not configured"
+
+        # Call the remote chat API
+        url = f"{api_url.rstrip('/')}/api/chat/send"
+        headers = {
+            "Authorization": f"Bearer {gateway_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "message": message,
+            "timeout_ms": timeout * 1000
+        }
+
+        print(f"Sending message to remote agent at {url}")
+        response = requests.post(url, json=payload, headers=headers, timeout=timeout + 10)
+
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("response", "(No response)")
+        elif response.status_code == 401:
+            return "⚠️ Unauthorized - check MOLTBOT_GATEWAY_TOKEN"
+        else:
+            error = response.json().get("error", response.text)
+            return f"⚠️ Remote error ({response.status_code}): {error}"
+
+    except requests.Timeout:
+        return f"⚠️ Remote agent timed out ({timeout}s limit)"
+    except requests.ConnectionError:
+        return "⚠️ Could not connect to remote agent"
+    except Exception as e:
+        return f"⚠️ Remote error: {str(e)}"
+
 @app.post("/api/chat/send-to-agent")
 async def send_to_agent(data: SendToAgentRequest, db: Session = Depends(get_db)):
-    """Send a message to an OpenClaw agent and get the response."""
+    """Send a message to an OpenClaw agent and get the response.
+
+    Supports both local agents (via openclaw CLI) and remote agents (via HTTP API).
+    Remote agents are configured in openclaw.json with a 'remote' block containing
+    api_url and gateway_token.
+    """
     agent_id = data.agent_id
     message = data.message
-    
+
     if not agent_id or not message:
         raise HTTPException(status_code=400, detail="agent_id and message are required")
-    
+
     # First, save and broadcast the user's message
     user_message = ChatMessage(agent_id="user", content=message)
     db.add(user_message)
     db.commit()
     db.refresh(user_message)
-    
+
     await manager.broadcast({
         "type": "chat_message",
         "data": {
@@ -1259,62 +1327,71 @@ async def send_to_agent(data: SendToAgentRequest, db: Session = Depends(get_db))
             "created_at": user_message.created_at.isoformat()
         }
     })
-    
-    # Call OpenClaw CLI to send message to agent
-    try:
-        result = subprocess.run(
-            [
-                "openclaw", "agent",
-                "--agent", agent_id,
-                "--message", message,
-                "--json"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,  # 2 minute timeout for agent response
-            cwd=str(Path.home())
-        )
-        
-        if result.returncode == 0:
-            # Parse JSON response from OpenClaw
-            try:
-                response_data = json.loads(result.stdout)
-                # OpenClaw returns: { result: { payloads: [{ text: "..." }] } }
-                payloads = response_data.get("result", {}).get("payloads", [])
-                if payloads:
-                    # Combine all text payloads
-                    texts = [p.get("text", "") for p in payloads if p.get("text")]
-                    agent_response = "\n".join(texts) if texts else "(No text in response)"
-                else:
-                    # Fallback to other fields
-                    agent_response = response_data.get("response", "") or response_data.get("content", "") or "(No response)"
-            except json.JSONDecodeError:
-                # If not JSON, use raw output
-                agent_response = result.stdout.strip()
-            
-            if not agent_response:
-                agent_response = "(No response from agent)"
-        else:
-            # Handle error
-            error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-            agent_response = f"⚠️ Agent error: {error_msg}"
-    
-    except subprocess.TimeoutExpired:
-        agent_response = "⚠️ Agent response timed out (120s limit)"
-    except FileNotFoundError:
-        agent_response = "⚠️ OpenClaw CLI not found"
-    except Exception as e:
-        agent_response = f"⚠️ Error: {str(e)}"
-    
+
+    # Check if this is a remote agent
+    remote_config = get_agent_remote_config(agent_id)
+
+    if remote_config:
+        # Send to remote agent via HTTP
+        api_url = remote_config.get("api_url", "")
+        gateway_token = remote_config.get("gateway_token", "")
+        agent_response = send_message_to_remote_agent(api_url, gateway_token, message)
+    else:
+        # Call local OpenClaw CLI
+        try:
+            result = subprocess.run(
+                [
+                    "openclaw", "agent",
+                    "--agent", agent_id,
+                    "--message", message,
+                    "--json"
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,  # 2 minute timeout for agent response
+                cwd=str(Path.home())
+            )
+
+            if result.returncode == 0:
+                # Parse JSON response from OpenClaw
+                try:
+                    response_data = json.loads(result.stdout)
+                    # OpenClaw returns: { result: { payloads: [{ text: "..." }] } }
+                    payloads = response_data.get("result", {}).get("payloads", [])
+                    if payloads:
+                        # Combine all text payloads
+                        texts = [p.get("text", "") for p in payloads if p.get("text")]
+                        agent_response = "\n".join(texts) if texts else "(No text in response)"
+                    else:
+                        # Fallback to other fields
+                        agent_response = response_data.get("response", "") or response_data.get("content", "") or "(No response)"
+                except json.JSONDecodeError:
+                    # If not JSON, use raw output
+                    agent_response = result.stdout.strip()
+
+                if not agent_response:
+                    agent_response = "(No response from agent)"
+            else:
+                # Handle error
+                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                agent_response = f"⚠️ Agent error: {error_msg}"
+
+        except subprocess.TimeoutExpired:
+            agent_response = "⚠️ Agent response timed out (120s limit)"
+        except FileNotFoundError:
+            agent_response = "⚠️ OpenClaw CLI not found. Configure the agent as 'remote' in openclaw.json to use HTTP API instead."
+        except Exception as e:
+            agent_response = f"⚠️ Error: {str(e)}"
+
     # Get agent info for the response
     agent_info = get_agent_info(agent_id, db)
-    
+
     # Save agent's response to chat
     agent_message = ChatMessage(agent_id=agent_id, content=agent_response)
     db.add(agent_message)
     db.commit()
     db.refresh(agent_message)
-    
+
     # Broadcast agent's response
     await manager.broadcast({
         "type": "chat_message",
@@ -1326,7 +1403,7 @@ async def send_to_agent(data: SendToAgentRequest, db: Session = Depends(get_db))
             "created_at": agent_message.created_at.isoformat()
         }
     })
-    
+
     return {
         "ok": True,
         "user_message_id": user_message.id,
