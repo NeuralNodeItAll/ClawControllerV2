@@ -17,7 +17,7 @@ const navItems = [
 ]
 
 const secondaryItems = [
-  { to: '/workshop', icon: Wrench, label: 'Workshop' },
+  { to: '/workshop', icon: Wrench, label: 'Task Manager' },
 ]
 
 export default function Sidebar() {
@@ -87,18 +87,6 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-[var(--border-glass)]">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[rgba(139,92,246,0.2)] flex items-center justify-center text-base">
-            🤖
-          </div>
-          <div>
-            <div className="text-sm font-bold text-white">Jarvis</div>
-            <div className="text-xs text-[var(--text-muted)]">Pro Plan</div>
-          </div>
-        </div>
-      </div>
     </aside>
   )
 }

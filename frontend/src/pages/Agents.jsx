@@ -1,5 +1,6 @@
 import { useMissionStore } from '../store/useMissionStore'
 import { Users, Plus, Crown } from 'lucide-react'
+import InfoModal, { InfoButton, useInfoModal } from '../components/InfoModal'
 
 function AgentCard({ agent, isLead }) {
   const statusColor = {
@@ -20,7 +21,7 @@ function AgentCard({ agent, isLead }) {
     <div className="glass-card p-5">
       <div className="flex items-center gap-3 mb-3">
         <div className="w-12 h-12 rounded-full bg-[rgba(255,255,255,0.08)] flex items-center justify-center text-2xl">
-          {agent.avatar || agent.emoji || '🤖'}
+          {agent.avatar || agent.emoji || '\u{1F916}'}
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
@@ -46,6 +47,7 @@ export default function Agents() {
   const openAgentManagement = useMissionStore((s) => s.openAgentManagement)
   const lead = agents.find(a => a.roleLabel === 'Lead' || a.role === 'LEAD')
   const subAgents = agents.filter(a => a !== lead)
+  const info = useInfoModal()
 
   return (
     <div>
@@ -59,13 +61,16 @@ export default function Agents() {
             <p className="text-sm text-[var(--text-muted)]">Agent roster & management</p>
           </div>
         </div>
-        <button
-          onClick={openAgentManagement}
-          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-[var(--accent-blue)] text-white font-medium hover:brightness-110"
-        >
-          <Plus size={14} />
-          Create Agent
-        </button>
+        <div className="flex items-center gap-2">
+          <InfoButton onClick={info.show} />
+          <button
+            onClick={openAgentManagement}
+            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-[var(--accent-blue)] text-white font-medium hover:brightness-110"
+          >
+            <Plus size={14} />
+            Create Agent
+          </button>
+        </div>
       </div>
 
       {/* Commander */}
@@ -91,6 +96,18 @@ export default function Agents() {
           </div>
         )}
       </div>
+
+      <InfoModal
+        open={info.open}
+        onClose={info.hide}
+        title="Agents"
+        icon={<Users size={18} className="text-[var(--accent-blue)]" />}
+      >
+        <p>Agents is your <strong className="text-white">team roster</strong>. Your main agent is the Commander, and below it you see sub-agents with different specializations.</p>
+        <p>Use this page to see who's doing what, <strong className="text-white">create new sub-agents</strong> by describing what you need in plain English ("I need an agent that monitors competitor pricing and alerts me to changes"), and edit each agent's personality and behavior via their SOUL.md file.</p>
+        <p>Think of it like your <strong className="text-white">org chart for AI employees</strong>. Each agent has its own role, status, and capabilities.</p>
+        <p>Click "Create Agent" to add a new specialized sub-agent to your team.</p>
+      </InfoModal>
     </div>
   )
 }

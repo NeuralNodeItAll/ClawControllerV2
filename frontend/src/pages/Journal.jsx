@@ -1,6 +1,7 @@
 import { useMissionStore } from '../store/useMissionStore'
 import { BookOpen, Filter, Activity, CheckCircle, MessageSquare } from 'lucide-react'
 import { useState } from 'react'
+import InfoModal, { InfoButton, useInfoModal } from '../components/InfoModal'
 
 const typeIcons = {
   task: Activity,
@@ -12,6 +13,7 @@ const typeIcons = {
 export default function Journal() {
   const liveFeed = useMissionStore((s) => s.liveFeed)
   const [filter, setFilter] = useState('all')
+  const info = useInfoModal()
 
   const filtered = filter === 'all'
     ? liveFeed
@@ -23,10 +25,11 @@ export default function Journal() {
         <div className="w-10 h-10 rounded-full bg-[rgba(245,158,11,0.2)] flex items-center justify-center">
           <BookOpen size={20} className="text-[var(--accent-orange)]" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">Journal</h1>
           <p className="text-sm text-[var(--text-muted)]">Chronological activity log</p>
         </div>
+        <InfoButton onClick={info.show} />
       </div>
 
       {/* Filters */}
@@ -69,6 +72,19 @@ export default function Journal() {
           })
         )}
       </div>
+
+      <InfoModal
+        open={info.open}
+        onClose={info.hide}
+        title="Journal"
+        icon={<BookOpen size={18} className="text-[var(--accent-orange)]" />}
+      >
+        <p>Journal is your agent's diary. Every action, decision, and event gets logged here <strong className="text-white">chronologically</strong>.</p>
+        <p>Where the Dashboard shows you a snapshot of right now, Journal lets you scroll back through everything — what happened Tuesday at 3pm, what the agent was working on last Thursday, when a cron job fired and what it produced.</p>
+        <p>Use this when something looks off and you want to trace what happened, or when you want to review the full history of a particular day.</p>
+        <p>Think of it like checking your employee's <strong className="text-white">detailed timesheet</strong>.</p>
+        <p>Use the filter buttons to narrow by type: tasks, status changes, or comments.</p>
+      </InfoModal>
     </div>
   )
 }

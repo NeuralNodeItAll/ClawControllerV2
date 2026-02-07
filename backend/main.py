@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -11,6 +11,7 @@ import os
 import glob
 import time
 import subprocess
+import shutil
 
 from database import init_db, get_db, SessionLocal
 from models import (
@@ -165,7 +166,7 @@ ASSIGNMENT_RULES = {
     # "feature": "dev",
 }
 
-def get_auto_assignee(tags: list) -> str | None:
+def get_auto_assignee(tags: list) -> Optional[str]:
     """Find matching agent for given tags based on ASSIGNMENT_RULES."""
     if not tags:
         return None
@@ -852,7 +853,7 @@ def parse_mentions(content: str) -> list[str]:
     mentions = re.findall(r'@(\w+)', content)
     return mentions
 
-def get_agent_id_by_name(name: str, db: Session) -> str | None:
+def get_agent_id_by_name(name: str, db: Session) -> Optional[str]:
     """Find agent ID by name (case-insensitive)."""
     home = Path.home()
     config_path = home / ".openclaw" / "openclaw.json"
@@ -1236,7 +1237,7 @@ def get_agent_info(agent_id: str, db: Session) -> dict:
     # Ultimate fallback
     return {"id": agent_id, "name": agent_id.title(), "avatar": "🤖"}
 
-def get_agent_remote_config(agent_id: str) -> dict | None:
+def get_agent_remote_config(agent_id: str) -> Optional[dict]:
     """Check if an agent is configured as remote (running on moltworker)."""
     home = Path.home()
     config_path = home / ".openclaw" / "openclaw.json"
@@ -1383,6 +1384,20 @@ async def send_to_agent(data: SendToAgentRequest, db: Session = Depends(get_db))
             agent_response = "⚠️ OpenClaw CLI not found. Configure the agent as 'remote' in openclaw.json to use HTTP API instead."
         except Exception as e:
             agent_response = f"⚠️ Error: {str(e)}"
+
+    # Log API usage for this interaction
+    est_tokens_in = len(message.split()) * 2  # rough estimate
+    est_tokens_out = len(agent_response.split()) * 2
+    est_cost = (est_tokens_in * 0.000003) + (est_tokens_out * 0.000015)  # approximate Claude pricing
+    usage_log = ApiUsageLog(
+        model="claude-3-5-haiku",
+        tokens_in=est_tokens_in,
+        tokens_out=est_tokens_out,
+        cost=f"{est_cost:.6f}",
+        agent_id=agent_id,
+    )
+    db.add(usage_log)
+    db.commit()
 
     # Get agent info for the response
     agent_info = get_agent_info(agent_id, db)
@@ -1564,6 +1579,129 @@ def format_schedule_human(schedule_type: str, schedule_value: str, schedule_time
         return f"Cron: {schedule_value}"
     
     return schedule_type
+
+@app.get("/api/openclaw/crons")
+def fetch_openclaw_crons():
+    """Fetch cron jobs from all remote OpenClaw agents."""
+    home = Path.home()
+    config_path = home / ".openclaw" / "openclaw.json"
+
+    if not config_path.exists():
+        return []
+
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+    except Exception:
+        return []
+
+    results = []
+    agents_list = config.get("agents", {}).get("list", [])
+    for agent in agents_list:
+        remote = agent.get("remote")
+        if not remote or not remote.get("api_url"):
+            continue
+
+        agent_id = agent.get("id", "unknown")
+        agent_name = agent.get("identity", {}).get("name", agent_id)
+        api_url = remote["api_url"]
+        gateway_token = remote.get("gateway_token", "")
+
+        # Expand env var tokens
+        if gateway_token.startswith("${") and gateway_token.endswith("}"):
+            env_var = gateway_token[2:-1]
+            gateway_token = os.environ.get(env_var, "")
+
+        if not gateway_token:
+            continue
+
+        try:
+            url = f"{api_url.rstrip('/')}/api/chat/send"
+            headers = {
+                "Authorization": f"Bearer {gateway_token}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "message": "List all your cron jobs. Return ONLY a JSON array of objects with keys: name, schedule, message, enabled. No other text.",
+                "timeout_ms": 30000
+            }
+            resp = requests.post(url, json=payload, headers=headers, timeout=40)
+            if resp.status_code == 200:
+                data = resp.json()
+                response_text = data.get("response", "")
+                # Extract JSON from response (may be wrapped in markdown code block)
+                json_str = response_text
+                if "```json" in json_str:
+                    json_str = json_str.split("```json")[1].split("```")[0].strip()
+                elif "```" in json_str:
+                    json_str = json_str.split("```")[1].split("```")[0].strip()
+
+                crons = json.loads(json_str)
+                for cron in crons:
+                    cron["agent_id"] = agent_id
+                    cron["agent_name"] = agent_name
+                    cron["source"] = "openclaw"
+                results.extend(crons)
+        except Exception as e:
+            print(f"Failed to fetch crons from {agent_name}: {e}")
+
+    return results
+
+
+@app.post("/api/openclaw/crons/sync")
+def sync_openclaw_crons(db: Session = Depends(get_db)):
+    """Fetch crons from remote OpenClaw agents and sync them into the recurring tasks table."""
+    crons = fetch_openclaw_crons()
+    synced = []
+
+    for cron in crons:
+        title = cron.get("name", "Untitled cron")
+        # Check if already synced (by title match)
+        existing = db.query(RecurringTask).filter(RecurringTask.title == title).first()
+        if existing:
+            # Update is_active if changed
+            enabled = cron.get("enabled", True)
+            if existing.is_active != enabled:
+                existing.is_active = enabled
+                db.commit()
+            synced.append({"id": existing.id, "title": title, "action": "exists"})
+            continue
+
+        # Parse cron schedule
+        schedule_expr = cron.get("schedule", "")
+        schedule_time_str = None
+        if schedule_expr:
+            parts = schedule_expr.split()
+            if len(parts) >= 2:
+                minute = parts[0]
+                hour = parts[1]
+                try:
+                    schedule_time_str = f"{int(hour):02d}:{int(minute):02d}"
+                except ValueError:
+                    pass
+
+        next_run = calculate_next_run("cron", schedule_expr, schedule_time_str)
+
+        new_rt = RecurringTask(
+            title=title,
+            description=cron.get("message", ""),
+            priority=Priority.NORMAL,
+            tags=json.dumps(["openclaw", cron.get("agent_name", "agent")]),
+            assignee_id=cron.get("agent_id"),
+            schedule_type="cron",
+            schedule_value=schedule_expr,
+            schedule_time=schedule_time_str,
+            is_active=cron.get("enabled", True),
+            next_run_at=next_run,
+            run_count=0
+        )
+        db.add(new_rt)
+        db.commit()
+        db.refresh(new_rt)
+        synced.append({"id": new_rt.id, "title": title, "action": "created"})
+
+    return {"synced": synced, "total": len(synced)}
+
 
 @app.get("/api/recurring")
 def list_recurring_tasks(db: Session = Depends(get_db)):
@@ -2365,11 +2503,46 @@ def delete_agent(agent_id: str):
     return {"ok": True, "message": f"Agent '{agent_id}' removed (workspace preserved)"}
 
 
-# ============ V2 — Documents (DocuDigest) ============
+# ============ V2 — Documents ============
 
-class DocumentCreate(BaseModel):
-    title: str
-    tags: Optional[List[str]] = []
+# Ensure upload directory exists
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".doc", ".docx", ".csv", ".json", ".html"}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+
+def extract_text_from_file(file_path: Path) -> str:
+    """Extract text content from a file based on its extension."""
+    ext = file_path.suffix.lower()
+
+    if ext == ".pdf":
+        try:
+            import pdfplumber
+            text_parts = []
+            with pdfplumber.open(str(file_path)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_parts.append(page_text)
+            return "\n\n".join(text_parts)
+        except Exception as e:
+            raise ValueError(f"PDF extraction failed: {e}")
+
+    elif ext in {".txt", ".md", ".csv", ".json", ".html"}:
+        try:
+            return file_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return file_path.read_text(encoding="latin-1")
+
+    elif ext in {".doc", ".docx"}:
+        # Basic fallback — docx support would need python-docx
+        raise ValueError(f"DOCX extraction not yet supported. Upload as PDF or plain text instead.")
+
+    else:
+        raise ValueError(f"Unsupported file type: {ext}")
+
 
 @app.get("/api/documents")
 def list_documents(db: Session = Depends(get_db)):
@@ -2385,17 +2558,95 @@ def list_documents(db: Session = Depends(get_db)):
         "processed_at": d.processed_at.isoformat() if d.processed_at else None,
     } for d in docs]
 
-@app.post("/api/documents")
-async def create_document(doc_data: DocumentCreate, db: Session = Depends(get_db)):
+
+@app.post("/api/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    tags: str = Form("[]"),
+    db: Session = Depends(get_db),
+):
+    """Upload a file, extract text, and store in the database."""
+    # Validate extension
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type '{ext}' not supported. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    # Read file content
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024*1024)}MB")
+
+    # Create document record first
+    try:
+        parsed_tags = json.loads(tags) if tags else []
+    except json.JSONDecodeError:
+        parsed_tags = []
+
     doc = Document(
-        title=doc_data.title,
-        tags=json.dumps(doc_data.tags) if doc_data.tags else "[]",
+        title=file.filename,
+        tags=json.dumps(parsed_tags),
+        file_size=len(content),
+        status="processing",
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Save file to disk
+    file_dir = UPLOAD_DIR / doc.id
+    file_dir.mkdir(exist_ok=True)
+    file_path = file_dir / file.filename
+    file_path.write_bytes(content)
+    doc.file_path = str(file_path)
+
+    # Extract text
+    try:
+        extracted_text = extract_text_from_file(file_path)
+        doc.content_text = extracted_text
+        doc.status = "ready"
+        doc.processed_at = datetime.utcnow()
+    except ValueError as e:
+        doc.status = "error"
+        doc.content_text = None
+        # Still save — user can see the error
+        db.commit()
+        raise HTTPException(status_code=422, detail=str(e))
+
+    db.commit()
+    db.refresh(doc)
+
+    # Broadcast via WebSocket
+    await manager.broadcast({
+        "type": "document_uploaded",
+        "data": {"id": doc.id, "title": doc.title, "status": doc.status}
+    })
+
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "status": doc.status,
+        "file_size": doc.file_size,
+        "text_length": len(doc.content_text) if doc.content_text else 0,
+    }
+
+
+@app.post("/api/documents")
+async def create_document_legacy(
+    title: str = "",
+    tags: Optional[List[str]] = [],
+    db: Session = Depends(get_db),
+):
+    """Legacy endpoint — creates a document record without file content."""
+    doc = Document(
+        title=title or "Untitled",
+        tags=json.dumps(tags) if tags else "[]",
         status="pending",
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
     return {"id": doc.id, "status": doc.status}
+
 
 @app.get("/api/documents/{doc_id}")
 def get_document(doc_id: str, db: Session = Depends(get_db)):
@@ -2413,6 +2664,78 @@ def get_document(doc_id: str, db: Session = Depends(get_db)):
         "created_at": doc.created_at.isoformat(),
         "processed_at": doc.processed_at.isoformat() if doc.processed_at else None,
     }
+
+
+@app.get("/api/documents/{doc_id}/content")
+def get_document_content(doc_id: str, db: Session = Depends(get_db)):
+    """Agent-optimized endpoint — returns just the extracted text."""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.status != "ready":
+        raise HTTPException(status_code=422, detail=f"Document not ready (status: {doc.status})")
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "content": doc.content_text,
+        "char_count": len(doc.content_text) if doc.content_text else 0,
+    }
+
+
+@app.get("/api/documents/search/text")
+def search_documents(q: str = "", db: Session = Depends(get_db)):
+    """Search across all document text. Returns matching docs with excerpts."""
+    if not q or len(q) < 2:
+        raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
+
+    docs = db.query(Document).filter(
+        Document.status == "ready",
+        Document.content_text.ilike(f"%{q}%")
+    ).order_by(Document.created_at.desc()).all()
+
+    results = []
+    q_lower = q.lower()
+    for d in docs:
+        # Find excerpt around the match
+        text = d.content_text or ""
+        idx = text.lower().find(q_lower)
+        start = max(0, idx - 100)
+        end = min(len(text), idx + len(q) + 100)
+        excerpt = ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
+
+        results.append({
+            "id": d.id,
+            "title": d.title,
+            "excerpt": excerpt,
+            "tags": json.loads(d.tags) if d.tags else [],
+            "created_at": d.created_at.isoformat(),
+        })
+
+    return {"query": q, "count": len(results), "results": results}
+
+
+@app.delete("/api/documents/{doc_id}")
+async def delete_document(doc_id: str, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Remove file from disk
+    if doc.file_path:
+        file_path = Path(doc.file_path)
+        if file_path.exists():
+            file_dir = file_path.parent
+            shutil.rmtree(str(file_dir), ignore_errors=True)
+
+    db.delete(doc)
+    db.commit()
+
+    await manager.broadcast({
+        "type": "document_deleted",
+        "data": {"id": doc_id}
+    })
+
+    return {"ok": True}
 
 # ============ V2 — Intelligence Reports ============
 

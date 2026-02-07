@@ -109,9 +109,9 @@ function getRoleLabel(role) {
 function getAgentColor(id, name) {
   // Generate consistent color from agent id
   const colorPalette = [
-    '#E07B3C', '#3B82F6', '#16A34A', '#A855F7', 
-    '#F59E0B', '#0EA5E9', '#EF4444', '#8B5CF6',
-    '#10B981', '#F97316', '#06B6D4', '#EC4899'
+    '#3B82F6', '#8B5CF6', '#16A34A', '#A855F7',
+    '#F59E0B', '#0EA5E9', '#EF4444', '#22C55E',
+    '#10B981', '#EC4899', '#06B6D4', '#6366F1'
   ]
   // Hash the id to get a consistent color
   let hash = 0
@@ -675,7 +675,7 @@ export const useMissionStore = create((set, get) => ({
     // Determine target agent
     const targetAgentId = mentions.length === 1 ? mentions[0].id : 'main'
     const targetAgent = agents.find(a => a.id === targetAgentId) || 
-      { id: 'main', name: 'Main Agent', avatar: '🤖', color: '#E07B3C' }
+      { id: 'main', name: 'Main Agent', avatar: '🤖', color: '#3B82F6' }
     
     // 1. Immediately add user message
     const userMessage = {
@@ -1008,7 +1008,7 @@ export const statusOrder = ['INBOX', 'ASSIGNED', 'IN PROGRESS', 'REVIEW', 'DONE'
 export const statusColors = {
   INBOX: 'var(--accent)',
   ASSIGNED: '#8B5CF6',
-  'IN PROGRESS': '#F97316',
+  'IN PROGRESS': '#F59E0B',
   REVIEW: '#0EA5E9',
   DONE: '#22C55E'
 }

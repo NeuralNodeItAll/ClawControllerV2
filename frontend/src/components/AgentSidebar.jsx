@@ -93,7 +93,7 @@ export default function AgentSidebar() {
               onClick={() => toggleAgentFilter(agent.id)}
               style={isSelected ? { 
                 borderColor: agent.color,
-                boxShadow: `0 0 0 2px ${agent.color}25, 0 10px 20px rgba(224, 123, 60, 0.12)`
+                boxShadow: `0 0 0 2px ${agent.color}25, 0 10px 20px rgba(255, 255, 255, 0.08)`
               } : undefined}
             >
               <div className="agent-avatar" style={{ backgroundColor: agent.color }}>

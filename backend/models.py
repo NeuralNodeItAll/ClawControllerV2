@@ -170,7 +170,7 @@ class TaskActivity(Base):
 # ============ V2 Models ============
 
 class Document(Base):
-    """DocuDigest — uploaded and processed documents."""
+    """Uploaded and processed documents."""
     __tablename__ = "documents"
 
     id = Column(String, primary_key=True, default=generate_uuid)

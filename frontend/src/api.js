@@ -197,6 +197,11 @@ export async function fetchStats() {
   return fetchAPI('/api/stats')
 }
 
+// ============ OpenClaw Crons ============
+export async function syncOpenClawCrons() {
+  return fetchAPI('/api/openclaw/crons/sync', { method: 'POST' })
+}
+
 // ============ Recurring Tasks ============
 export async function fetchRecurringTasks() {
   return fetchAPI('/api/recurring')
@@ -320,15 +325,30 @@ export async function fetchDocuments() {
   return fetchAPI('/api/documents')
 }
 
-export async function createDocument(data) {
-  return fetchAPI('/api/documents', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  })
+export async function uploadDocument(file, tags = []) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('tags', JSON.stringify(tags))
+
+  const url = `${API_BASE}/api/documents/upload`
+  const res = await fetch(url, { method: 'POST', body: formData })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || 'Upload failed')
+  }
+  return res.json()
 }
 
 export async function fetchDocument(docId) {
   return fetchAPI(`/api/documents/${docId}`)
+}
+
+export async function deleteDocument(docId) {
+  return fetchAPI(`/api/documents/${docId}`, { method: 'DELETE' })
+}
+
+export async function searchDocuments(query) {
+  return fetchAPI(`/api/documents/search/text?q=${encodeURIComponent(query)}`)
 }
 
 // ============ V2 — Intelligence ============

@@ -17,9 +17,9 @@ function RunHistoryItem({ run, agents }) {
   const getTaskStatusColor = () => {
     if (!run.task) return '#6B7280'
     const statusColors = {
-      'INBOX': '#E07B3C',
+      'INBOX': '#3B82F6',
       'ASSIGNED': '#8B5CF6',
-      'IN_PROGRESS': '#F97316',
+      'IN_PROGRESS': '#F59E0B',
       'REVIEW': '#0EA5E9',
       'DONE': '#22C55E'
     }

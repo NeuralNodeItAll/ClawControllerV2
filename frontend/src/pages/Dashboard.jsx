@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { useMissionStore } from '../store/useMissionStore'
+import InfoModal, { InfoButton, useInfoModal } from '../components/InfoModal'
 import {
   Settings, ArrowRight, Clock, Zap, GitCommit,
-  Activity, CheckCircle, Wifi
+  Activity, CheckCircle, LayoutDashboard
 } from 'lucide-react'
 
-function StatusPopover({ onClose }) {
+function StatusPopover({ onClose, agentName }) {
   return (
     <div className="glass-popover p-5 w-[360px] absolute top-full left-0 mt-2 z-50 shadow-2xl">
       <div className="flex items-center gap-2 mb-1">
         <span className="status-dot status-dot--orange" />
         <span className="text-white font-semibold text-sm">Idle</span>
       </div>
-      <p className="text-xs text-[var(--text-secondary)] mb-4">Jarvis Agent Status</p>
+      <p className="text-xs text-[var(--text-secondary)] mb-4">{agentName} Agent Status</p>
 
       <div className="mb-3">
         <p className="text-label mb-1">Current Activity</p>
@@ -53,6 +54,9 @@ function StatusPopover({ onClose }) {
 
 function StatusCard() {
   const [showPopover, setShowPopover] = useState(false)
+  const agents = useMissionStore((s) => s.agents)
+  const leadAgent = agents.find(a => a.role === 'LEAD') || agents[0]
+  const agentName = leadAgent?.name || 'Agent'
 
   return (
     <div className="relative">
@@ -75,7 +79,7 @@ function StatusCard() {
           <span>(30m)</span>
         </div>
       </div>
-      {showPopover && <StatusPopover onClose={() => setShowPopover(false)} />}
+      {showPopover && <StatusPopover onClose={() => setShowPopover(false)} agentName={agentName} />}
     </div>
   )
 }
@@ -93,7 +97,7 @@ function WorkshopCard() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="status-dot status-dot--purple" />
-          <span className="text-label">WORKSHOP</span>
+          <span className="text-label">TASKS</span>
         </div>
         <ArrowRight size={14} className="text-[var(--text-muted)]" />
       </div>
@@ -130,7 +134,7 @@ function LiveActivitySection() {
           <span className="text-white font-semibold text-sm">Live Activity</span>
         </div>
         <a href="/workshop" className="text-xs text-[var(--accent-blue)] hover:underline">
-          View Workshop &rarr;
+          View Task Manager &rarr;
         </a>
       </div>
       <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto">
@@ -174,15 +178,20 @@ function RecentCommitsSection() {
 }
 
 export default function Dashboard() {
+  const info = useInfoModal()
+
   return (
     <div>
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Mission Control</h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">Real-time overview of all systems</p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Mission Control</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Real-time overview of all systems</p>
+        </div>
+        <InfoButton onClick={info.show} />
       </div>
 
-      {/* Status Cards Row */}
+      {/* V2 Status Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatusCard />
         <WorkshopCard />
@@ -194,6 +203,19 @@ export default function Dashboard() {
 
       {/* Recent Commits */}
       <RecentCommitsSection />
+
+      <InfoModal
+        open={info.open}
+        onClose={info.hide}
+        title="Dashboard"
+        icon={<LayoutDashboard size={18} className="text-[var(--accent-blue)]" />}
+      >
+        <p>Dashboard is your home base. You open Mission Control and this is what you see first — a <strong className="text-white">real-time snapshot of everything</strong>.</p>
+        <p>The three status cards at the top tell you instantly: is your agent online, how many tasks are queued vs done, and how many clients are connected.</p>
+        <p>The <strong className="text-white">Live Activity</strong> feed below is like a heartbeat monitor — you can see what the agent is doing right now or did recently. Below that, <strong className="text-white">Recent Commits</strong> shows actual code the agent has pushed to your repos.</p>
+        <p>Check this page first thing in the morning to see what happened overnight, or glance at it throughout the day to make sure things are running smoothly.</p>
+        <p>Clicking the <strong className="text-white">STATUS card</strong> gives you a detailed popover with bandwidth, load, next heartbeat check, and whether the agent is available for new work.</p>
+      </InfoModal>
     </div>
   )
 }
