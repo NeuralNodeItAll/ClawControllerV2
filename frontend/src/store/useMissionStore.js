@@ -775,12 +775,13 @@ export const useMissionStore = create((set, get) => ({
       }))
       
       await api.updateRecurringTask(recurringId, { is_active: !task.is_active })
+      await get().refreshRecurringTasks()
     } catch (error) {
       console.error('Failed to toggle recurring task:', error)
       get().refreshRecurringTasks()
     }
   },
-  
+
   deleteRecurringTask: async (recurringId) => {
     try {
       // Optimistic update
@@ -788,8 +789,9 @@ export const useMissionStore = create((set, get) => ({
         recurringTasks: s.recurringTasks.filter(t => t.id !== recurringId),
         selectedRecurringTaskId: s.selectedRecurringTaskId === recurringId ? null : s.selectedRecurringTaskId
       }))
-      
+
       await api.deleteRecurringTask(recurringId)
+      await get().refreshRecurringTasks()
     } catch (error) {
       console.error('Failed to delete recurring task:', error)
       get().refreshRecurringTasks()

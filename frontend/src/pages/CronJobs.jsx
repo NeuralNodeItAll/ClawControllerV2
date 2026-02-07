@@ -368,6 +368,7 @@ export default function CronJobs() {
         scheduleTime: formData.schedule_time || null,
         assignee_id: formData.assignee_id || null,
       })
+      await refreshRecurringTasks()
     } else {
       await updateRecurringTask(editingJob.id, {
         title: formData.title,

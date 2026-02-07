@@ -12,6 +12,7 @@ import glob
 import time
 import subprocess
 import shutil
+import uuid
 
 from database import init_db, get_db, SessionLocal
 from models import (
@@ -1544,11 +1545,23 @@ def calculate_next_run(schedule_type: str, schedule_value: str, schedule_time: s
         return now + timedelta(hours=hours)
     
     elif schedule_type == "cron":
-        # For cron, we'd need a cron parser library
-        # For now, default to daily
-        # TODO: Integrate with OpenClaw's cron system
+        # Parse simple cron expressions: "minute hour * * *"
+        if schedule_value:
+            parts = schedule_value.strip().split()
+            if len(parts) >= 2:
+                try:
+                    minute = int(parts[0])
+                    hour = int(parts[1])
+                    # Check if day-of-month, month, day-of-week are all wildcards
+                    if all(p == '*' for p in parts[2:5] if p):
+                        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                        if next_run <= now:
+                            next_run = next_run + timedelta(days=1)
+                        return next_run
+                except (ValueError, IndexError):
+                    pass
         return now + timedelta(days=1)
-    
+
     return now + timedelta(days=1)
 
 # Import timedelta for schedule calculations
@@ -1576,13 +1589,38 @@ def format_schedule_human(schedule_type: str, schedule_value: str, schedule_time
         return f"Every {hours} hours"
     
     elif schedule_type == "cron":
+        if schedule_value:
+            parts = schedule_value.strip().split()
+            if len(parts) >= 2:
+                try:
+                    minute = int(parts[0])
+                    hour = int(parts[1])
+                    if all(p == '*' for p in parts[2:5] if p):
+                        # Daily cron - format as human-readable time
+                        period = "AM" if hour < 12 else "PM"
+                        display_hour = hour % 12 or 12
+                        # Check for timezone info stored in schedule_time field
+                        tz_label = "UTC"
+                        if schedule_time and schedule_time.startswith("tz:"):
+                            tz_name = schedule_time[3:]
+                            tz_abbrevs = {
+                                "America/Los_Angeles": "PST",
+                                "America/New_York": "EST",
+                                "America/Chicago": "CST",
+                                "America/Denver": "MST",
+                                "Europe/London": "GMT",
+                            }
+                            tz_label = tz_abbrevs.get(tz_name, tz_name)
+                        return f"Daily at {display_hour}:{minute:02d} {period} {tz_label}"
+                except (ValueError, IndexError):
+                    pass
         return f"Cron: {schedule_value}"
-    
+
     return schedule_type
 
 @app.get("/api/openclaw/crons")
 def fetch_openclaw_crons():
-    """Fetch cron jobs from all remote OpenClaw agents."""
+    """Fetch cron jobs from all remote OpenClaw agents via the /api/chat/crons endpoint."""
     home = Path.home()
     config_path = home / ".openclaw" / "openclaw.json"
 
@@ -1616,32 +1654,32 @@ def fetch_openclaw_crons():
             continue
 
         try:
-            url = f"{api_url.rstrip('/')}/api/chat/send"
-            headers = {
-                "Authorization": f"Bearer {gateway_token}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "message": "List all your cron jobs. Return ONLY a JSON array of objects with keys: name, schedule, message, enabled. No other text.",
-                "timeout_ms": 30000
-            }
-            resp = requests.post(url, json=payload, headers=headers, timeout=40)
+            url = f"{api_url.rstrip('/')}/api/chat/crons"
+            headers = {"Authorization": f"Bearer {gateway_token}"}
+            resp = requests.get(url, headers=headers, timeout=15)
             if resp.status_code == 200:
                 data = resp.json()
-                response_text = data.get("response", "")
-                # Extract JSON from response (may be wrapped in markdown code block)
-                json_str = response_text
-                if "```json" in json_str:
-                    json_str = json_str.split("```json")[1].split("```")[0].strip()
-                elif "```" in json_str:
-                    json_str = json_str.split("```")[1].split("```")[0].strip()
+                jobs = data.get("jobs", [])
+                for job in jobs:
+                    # Skip disabled one-time ("at") jobs
+                    schedule = job.get("schedule", {})
+                    if schedule.get("kind") == "at" and not job.get("enabled", False):
+                        continue
 
-                crons = json.loads(json_str)
-                for cron in crons:
-                    cron["agent_id"] = agent_id
-                    cron["agent_name"] = agent_name
-                    cron["source"] = "openclaw"
-                results.extend(crons)
+                    results.append({
+                        "id": job.get("id"),
+                        "name": job.get("name", "Untitled cron"),
+                        "enabled": job.get("enabled", False),
+                        "schedule_kind": schedule.get("kind"),
+                        "schedule_expr": schedule.get("expr", ""),
+                        "schedule_tz": schedule.get("tz"),
+                        "schedule_at": schedule.get("at"),
+                        "message": job.get("payload", {}).get("message", ""),
+                        "state": job.get("state", {}),
+                        "agent_id": agent_id,
+                        "agent_name": agent_name,
+                        "source": "openclaw",
+                    })
         except Exception as e:
             print(f"Failed to fetch crons from {agent_name}: {e}")
 
@@ -1656,43 +1694,93 @@ def sync_openclaw_crons(db: Session = Depends(get_db)):
 
     for cron in crons:
         title = cron.get("name", "Untitled cron")
-        # Check if already synced (by title match)
-        existing = db.query(RecurringTask).filter(RecurringTask.title == title).first()
-        if existing:
-            # Update is_active if changed
-            enabled = cron.get("enabled", True)
-            if existing.is_active != enabled:
-                existing.is_active = enabled
-                db.commit()
-            synced.append({"id": existing.id, "title": title, "action": "exists"})
-            continue
+        openclaw_job_id = cron.get("id", "")
+        state = cron.get("state", {})
+        schedule_kind = cron.get("schedule_kind", "")
+        schedule_expr = cron.get("schedule_expr", "")
+        schedule_tz = cron.get("schedule_tz")
 
-        # Parse cron schedule
-        schedule_expr = cron.get("schedule", "")
+        # Match existing by openclaw job ID stored in tags, then fall back to title
+        existing = None
+        if openclaw_job_id:
+            all_openclaw = db.query(RecurringTask).filter(RecurringTask.tags.like('%openclaw%')).all()
+            for rt in all_openclaw:
+                try:
+                    tags = json.loads(rt.tags) if rt.tags else []
+                    if f"ocid:{openclaw_job_id}" in tags:
+                        existing = rt
+                        break
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        if not existing:
+            existing = db.query(RecurringTask).filter(RecurringTask.title == title).first()
+
+        # Parse next/last run from openclaw state
+        next_run_at = None
+        last_run_at = None
+        if state.get("nextRunAtMs"):
+            next_run_at = datetime.utcfromtimestamp(state["nextRunAtMs"] / 1000)
+        if state.get("lastRunAtMs"):
+            last_run_at = datetime.utcfromtimestamp(state["lastRunAtMs"] / 1000)
+
+        # Build schedule_time: store timezone info for format_schedule_human
         schedule_time_str = None
         if schedule_expr:
             parts = schedule_expr.split()
             if len(parts) >= 2:
-                minute = parts[0]
-                hour = parts[1]
                 try:
-                    schedule_time_str = f"{int(hour):02d}:{int(minute):02d}"
+                    schedule_time_str = f"{int(parts[1]):02d}:{int(parts[0]):02d}"
                 except ValueError:
                     pass
+        if schedule_tz:
+            schedule_time_str = f"tz:{schedule_tz}"
 
-        next_run = calculate_next_run("cron", schedule_expr, schedule_time_str)
+        if existing:
+            # Update fields from source
+            existing.is_active = cron.get("enabled", True)
+            existing.description = cron.get("message", "") or existing.description
+            if next_run_at:
+                existing.next_run_at = next_run_at
+            if last_run_at:
+                existing.last_run_at = last_run_at
+            if schedule_expr:
+                existing.schedule_value = schedule_expr
+            if schedule_time_str:
+                existing.schedule_time = schedule_time_str
+            # Ensure openclaw job ID is in tags
+            try:
+                tags = json.loads(existing.tags) if existing.tags else []
+            except (json.JSONDecodeError, TypeError):
+                tags = []
+            tag_id = f"ocid:{openclaw_job_id}"
+            if openclaw_job_id and tag_id not in tags:
+                tags.append(tag_id)
+                existing.tags = json.dumps(tags)
+            db.commit()
+            synced.append({"id": existing.id, "title": title, "action": "updated"})
+            continue
+
+        # Calculate next_run if not provided by openclaw state
+        if not next_run_at:
+            next_run_at = calculate_next_run("cron", schedule_expr, schedule_time_str)
+
+        tags = ["openclaw", cron.get("agent_name", "agent")]
+        if openclaw_job_id:
+            tags.append(f"ocid:{openclaw_job_id}")
 
         new_rt = RecurringTask(
             title=title,
             description=cron.get("message", ""),
             priority=Priority.NORMAL,
-            tags=json.dumps(["openclaw", cron.get("agent_name", "agent")]),
+            tags=json.dumps(tags),
             assignee_id=cron.get("agent_id"),
             schedule_type="cron",
             schedule_value=schedule_expr,
             schedule_time=schedule_time_str,
             is_active=cron.get("enabled", True),
-            next_run_at=next_run,
+            next_run_at=next_run_at,
+            last_run_at=last_run_at,
             run_count=0
         )
         db.add(new_rt)
@@ -1700,7 +1788,191 @@ def sync_openclaw_crons(db: Session = Depends(get_db)):
         db.refresh(new_rt)
         synced.append({"id": new_rt.id, "title": title, "action": "created"})
 
+    # Push back to openclaw for full bidirectional sync
+    push_cron_to_openclaw(db)
+
     return {"synced": synced, "total": len(synced)}
+
+
+def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local_tasks, db: Session):
+    """Push local openclaw tasks to a single remote agent's jobs.json.
+
+    Read-modify-write: fetches current remote jobs, merges local changes, writes back.
+    Preserves all fields ClawControllerV2 doesn't manage (sessionTarget, wakeMode, delivery, state, agentId).
+    """
+    base_url = api_url.rstrip('/')
+    headers = {"Authorization": f"Bearer {gateway_token}"}
+
+    # 1. Read current remote jobs
+    try:
+        resp = requests.get(f"{base_url}/api/chat/crons", headers=headers, timeout=15)
+        if resp.status_code != 200:
+            print(f"Push: failed to read remote crons from {api_url}: HTTP {resp.status_code}")
+            return
+        remote_data = resp.json()
+    except Exception as e:
+        print(f"Push: failed to fetch remote crons from {api_url}: {e}")
+        return
+
+    remote_jobs = remote_data.get("jobs", [])
+    version = remote_data.get("version", 1)
+
+    # Build lookup: ocid -> local task
+    local_by_ocid = {}
+    for rt in local_tasks:
+        try:
+            tags = json.loads(rt.tags) if rt.tags else []
+        except (json.JSONDecodeError, TypeError):
+            tags = []
+        for tag in tags:
+            if tag.startswith("ocid:"):
+                local_by_ocid[tag[5:]] = rt
+                break
+
+    # 2. Modify: update/remove remote jobs based on local state
+    updated_jobs = []
+    matched_ocids = set()
+
+    for job in remote_jobs:
+        job_id = job.get("id", "")
+        local_rt = local_by_ocid.get(job_id)
+
+        if local_rt:
+            # Matched - update fields from local
+            matched_ocids.add(job_id)
+            job["name"] = local_rt.title
+            job["enabled"] = local_rt.is_active
+            if local_rt.schedule_value:
+                job.setdefault("schedule", {})["expr"] = local_rt.schedule_value
+            if local_rt.description:
+                job.setdefault("payload", {})["message"] = local_rt.description
+            job["updatedAtMs"] = int(time.time() * 1000)
+            updated_jobs.append(job)
+        elif job_id not in local_by_ocid:
+            # Not previously synced (no local task has this ocid) — keep it
+            updated_jobs.append(job)
+        # else: was synced but deleted locally — omit it (effectively deleting from remote)
+
+    # 3. Create new remote jobs for local openclaw tasks with no remote match
+    for ocid, rt in local_by_ocid.items():
+        if ocid in matched_ocids:
+            continue
+        # This is a local task that has an ocid but no matching remote job
+        # (it was deleted remotely — don't re-create it)
+        # Only create new jobs for local tasks that were locally created with openclaw tags
+        # but have no ocid yet — those won't be in local_by_ocid since they lack ocid tags
+
+    # Check for local openclaw tasks that need new remote jobs (no ocid tag yet)
+    for rt in local_tasks:
+        try:
+            tags = json.loads(rt.tags) if rt.tags else []
+        except (json.JSONDecodeError, TypeError):
+            tags = []
+
+        has_ocid = any(t.startswith("ocid:") for t in tags)
+        if has_ocid:
+            continue  # Already handled above
+
+        if "openclaw" not in tags:
+            continue  # Not an openclaw task
+
+        # Create a new remote job
+        new_job_id = str(uuid.uuid4())[:8]
+        new_job = {
+            "id": new_job_id,
+            "name": rt.title,
+            "enabled": rt.is_active,
+            "schedule": {
+                "kind": "cron",
+                "expr": rt.schedule_value or "0 9 * * *",
+            },
+            "payload": {
+                "message": rt.description or rt.title,
+            },
+            "sessionTarget": "isolated",
+            "wakeMode": "next-heartbeat",
+            "delivery": {"mode": "announce"},
+            "createdAtMs": int(time.time() * 1000),
+            "updatedAtMs": int(time.time() * 1000),
+        }
+        updated_jobs.append(new_job)
+
+        # Tag the local task with the new ocid
+        tags.append(f"ocid:{new_job_id}")
+        rt.tags = json.dumps(tags)
+        db.commit()
+
+    # 4. Write back to remote
+    put_body = {"version": version, "jobs": updated_jobs}
+    try:
+        resp = requests.put(
+            f"{base_url}/api/chat/crons",
+            headers={**headers, "Content-Type": "application/json"},
+            json=put_body,
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            print(f"Push: wrote {len(updated_jobs)} jobs to {api_url}")
+        else:
+            print(f"Push: PUT failed for {api_url}: HTTP {resp.status_code} {resp.text[:200]}")
+    except Exception as e:
+        print(f"Push: failed to write crons to {api_url}: {e}")
+
+
+def push_cron_to_openclaw(db: Session):
+    """Push local openclaw recurring tasks to all configured remote agents."""
+    home = Path.home()
+    config_path = home / ".openclaw" / "openclaw.json"
+
+    if not config_path.exists():
+        return
+
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+    except Exception:
+        return
+
+    # Gather all local recurring tasks with openclaw tags
+    all_openclaw_tasks = db.query(RecurringTask).filter(RecurringTask.tags.like('%openclaw%')).all()
+    if not all_openclaw_tasks:
+        return
+
+    agents_list = config.get("agents", {}).get("list", [])
+    for agent in agents_list:
+        remote = agent.get("remote")
+        if not remote or not remote.get("api_url"):
+            continue
+
+        agent_id = agent.get("id", "unknown")
+        api_url = remote["api_url"]
+        gateway_token = remote.get("gateway_token", "")
+
+        # Expand env var tokens
+        if gateway_token.startswith("${") and gateway_token.endswith("}"):
+            env_var = gateway_token[2:-1]
+            gateway_token = os.environ.get(env_var, "")
+
+        if not gateway_token:
+            continue
+
+        # Filter tasks for this agent (by agent_id in tags or assignee)
+        agent_tasks = []
+        for rt in all_openclaw_tasks:
+            try:
+                tags = json.loads(rt.tags) if rt.tags else []
+            except (json.JSONDecodeError, TypeError):
+                tags = []
+            # Include if assigned to this agent or has agent name in tags
+            agent_name = agent.get("identity", {}).get("name", agent_id)
+            if rt.assignee_id == agent_id or agent_name in tags or agent_id in tags:
+                agent_tasks.append(rt)
+            elif not rt.assignee_id and len(agents_list) == 1:
+                # Single agent setup: push all openclaw tasks
+                agent_tasks.append(rt)
+
+        if agent_tasks:
+            _push_to_single_agent(api_url, gateway_token, agent_id, agent_tasks, db)
 
 
 @app.get("/api/recurring")
@@ -1855,7 +2127,15 @@ async def update_recurring_task(recurring_id: str, task_data: RecurringTaskUpdat
     
     db.commit()
     await manager.broadcast({"type": "recurring_updated", "data": {"id": recurring_id}})
-    
+
+    # Push to openclaw if this task has openclaw tags
+    try:
+        tags = json.loads(rt.tags) if rt.tags else []
+    except (json.JSONDecodeError, TypeError):
+        tags = []
+    if "openclaw" in tags or any(t.startswith("ocid:") for t in tags):
+        push_cron_to_openclaw(db)
+
     return {"ok": True}
 
 @app.delete("/api/recurring/{recurring_id}")
@@ -1864,12 +2144,19 @@ async def delete_recurring_task(recurring_id: str, db: Session = Depends(get_db)
     rt = db.query(RecurringTask).filter(RecurringTask.id == recurring_id).first()
     if not rt:
         raise HTTPException(status_code=404, detail="Recurring task not found")
-    
+
+    # Capture tags before delete for push decision
+    try:
+        rt_tags = json.loads(rt.tags) if rt.tags else []
+    except (json.JSONDecodeError, TypeError):
+        rt_tags = []
+    has_openclaw = "openclaw" in rt_tags or any(t.startswith("ocid:") for t in rt_tags)
+
     # Find and delete all incomplete tasks spawned from this recurring task
     runs = db.query(RecurringTaskRun).filter(
         RecurringTaskRun.recurring_task_id == recurring_id
     ).all()
-    
+
     deleted_task_ids = []
     for run in runs:
         if run.task_id:
@@ -1877,20 +2164,24 @@ async def delete_recurring_task(recurring_id: str, db: Session = Depends(get_db)
             if task and task.status not in [TaskStatus.COMPLETE]:
                 deleted_task_ids.append(task.id)
                 db.delete(task)
-    
+
     # Delete all run records
     db.query(RecurringTaskRun).filter(
         RecurringTaskRun.recurring_task_id == recurring_id
     ).delete()
-    
+
     db.delete(rt)
     db.commit()
-    
+
+    # Push to openclaw after delete if the task had openclaw tags
+    if has_openclaw:
+        push_cron_to_openclaw(db)
+
     # Broadcast deletions
     for task_id in deleted_task_ids:
         await manager.broadcast({"type": "task_deleted", "data": {"id": task_id}})
     await manager.broadcast({"type": "recurring_deleted", "data": {"id": recurring_id}})
-    
+
     return {"ok": True}
 
 @app.get("/api/recurring/{recurring_id}/runs")
@@ -2857,34 +3148,193 @@ def list_recaps(db: Session = Depends(get_db)):
         "created_at": r.created_at.isoformat(),
     } for r in recaps]
 
-# ============ V2 — API Usage ============
+# ============ V2 — API Usage (Cloudflare AI Gateway) ============
+
+# Pricing per 1M tokens (input / output) — updated Feb 2026
+MODEL_PRICING = {
+    "claude-opus-4-5-20251101":   {"input": 15.00, "output": 75.00},
+    "claude-sonnet-4-5-20250929": {"input": 3.00,  "output": 15.00},
+    "claude-haiku-4-5-20251001":  {"input": 0.80,  "output": 4.00},
+    # Older models that may appear in logs
+    "claude-3-5-sonnet-20241022": {"input": 3.00,  "output": 15.00},
+    "claude-3-haiku-20240307":    {"input": 0.25,  "output": 1.25},
+    "claude-3-5-haiku-20241022":  {"input": 0.80,  "output": 4.00},
+}
+
+def _estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
+    pricing = MODEL_PRICING.get(model) or MODEL_PRICING.get("claude-haiku-4-5-20251001")
+    return (tokens_in * pricing["input"] / 1_000_000) + (tokens_out * pricing["output"] / 1_000_000)
+
+def _load_cf_config():
+    """Load Cloudflare AI Gateway config from config.json."""
+    config_path = Path(__file__).parent / "config.json"
+    if config_path.exists():
+        with open(config_path) as f:
+            return json.load(f)
+    return {}
+
+USAGE_CACHE_PATH = Path(__file__).parent / "usage_cache.json"
+USAGE_CACHE_TTL = 120  # seconds
+
+def _get_cached_logs():
+    """Read logs from file cache if fresh enough."""
+    if USAGE_CACHE_PATH.exists():
+        try:
+            with open(USAGE_CACHE_PATH) as f:
+                cache = json.load(f)
+            if time.time() - cache.get("ts", 0) < USAGE_CACHE_TTL:
+                return cache.get("logs", [])
+        except Exception:
+            pass
+    return None
+
+def _refresh_gateway_logs():
+    """Fetch all logs from CF AI Gateway and write to file cache."""
+    import urllib.request
+    cfg = _load_cf_config()
+    account_id = cfg.get("cf_account_id", "")
+    gateway_id = cfg.get("cf_gateway_id", "")
+    api_token = cfg.get("cf_api_token", "")
+    if not all([account_id, gateway_id, api_token]):
+        return []
+    base = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs"
+    all_logs = []
+    page = 1
+    from datetime import timedelta as td
+    cutoff = (datetime.utcnow() - td(days=8)).date().isoformat()
+    while True:
+        params = [f"per_page=50", f"page={page}", "order_by=created_at", "order_by_direction=desc"]
+        url = f"{base}?{'&'.join(params)}"
+        req = urllib.request.Request(url)
+        req.add_header("Authorization", f"Bearer {api_token}")
+        req.add_header("User-Agent", "ClawController/2.0")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read())
+            if not data.get("success") or not data.get("result"):
+                break
+            logs = data["result"]
+            if not logs:
+                break
+            all_logs.extend(logs)
+            oldest = logs[-1].get("created_at", "")[:10]
+            if oldest < cutoff or len(logs) < 50:
+                break
+            page += 1
+            if page > 20:
+                break
+            time.sleep(0.2)  # Rate limit courtesy
+        except Exception as e:
+            print(f"AI Gateway API error (page {page}): {e}")
+            break
+    # Write to file cache
+    try:
+        with open(USAGE_CACHE_PATH, "w") as f:
+            json.dump({"ts": time.time(), "logs": all_logs}, f)
+    except Exception as e:
+        print(f"Cache write error: {e}")
+    return all_logs
+
+def _get_logs(start_date: str = None):
+    """Get logs from cache or fetch fresh. Filter by start_date."""
+    logs = _get_cached_logs()
+    if logs is None:
+        logs = _refresh_gateway_logs()
+    if start_date:
+        logs = [l for l in logs if l.get("created_at", "")[:10] >= start_date]
+    return logs
+
+def _process_logs(logs):
+    """Process gateway logs into aggregated stats."""
+    total_in = sum(log.get("tokens_in", 0) or 0 for log in logs)
+    total_out = sum(log.get("tokens_out", 0) or 0 for log in logs)
+    total_cost = 0.0
+    model_breakdown = {}
+    daily = {}
+    for log in logs:
+        model = log.get("model", "unknown")
+        t_in = log.get("tokens_in", 0) or 0
+        t_out = log.get("tokens_out", 0) or 0
+        # Use cost from gateway API directly, fallback to estimate
+        cost = log.get("cost") or _estimate_cost(model, t_in, t_out)
+        total_cost += cost
+        if model not in model_breakdown:
+            model_breakdown[model] = {"requests": 0, "tokens_in": 0, "tokens_out": 0, "cost": 0.0, "cached": 0}
+        model_breakdown[model]["requests"] += 1
+        model_breakdown[model]["tokens_in"] += t_in
+        model_breakdown[model]["tokens_out"] += t_out
+        model_breakdown[model]["cost"] += cost
+        if log.get("cached", False):
+            model_breakdown[model]["cached"] += 1
+        day = log.get("created_at", "")[:10]
+        if day:
+            if day not in daily:
+                daily[day] = {"cost": 0.0, "requests": 0, "tokens_in": 0, "tokens_out": 0}
+            daily[day]["cost"] += cost
+            daily[day]["requests"] += 1
+            daily[day]["tokens_in"] += t_in
+            daily[day]["tokens_out"] += t_out
+    cached_count = sum(1 for l in logs if l.get("cached", False))
+    return total_in, total_out, total_cost, model_breakdown, daily, cached_count
 
 @app.get("/api/usage/today")
-def get_today_usage(db: Session = Depends(get_db)):
-    today = datetime.utcnow().date()
-    logs = db.query(ApiUsageLog).filter(
-        ApiUsageLog.created_at >= datetime(today.year, today.month, today.day)
-    ).all()
-    total_cost = sum(float(l.cost or 0) for l in logs)
-    total_tokens_in = sum(l.tokens_in or 0 for l in logs)
-    total_tokens_out = sum(l.tokens_out or 0 for l in logs)
+def get_today_usage():
+    cfg = _load_cf_config()
+    if not all([cfg.get("cf_account_id"), cfg.get("cf_gateway_id"), cfg.get("cf_api_token")]):
+        return {"total_cost": "$0.00", "tokens_in": 0, "tokens_out": 0, "requests": 0, "cached": 0, "models": {}, "source": "not_configured"}
+    today = datetime.utcnow().date().isoformat()
+    logs = _get_logs(start_date=today)
+    total_in, total_out, total_cost, model_breakdown, _, cached_count = _process_logs(logs)
     return {
-        "total_cost": f"${total_cost:.2f}",
-        "tokens_in": total_tokens_in,
-        "tokens_out": total_tokens_out,
-        "sessions": len(logs),
+        "total_cost": f"${total_cost:.4f}",
+        "tokens_in": total_in,
+        "tokens_out": total_out,
+        "requests": len(logs),
+        "cached": cached_count,
+        "models": model_breakdown,
+        "source": "cloudflare_ai_gateway",
     }
 
 @app.get("/api/usage/weekly")
-def get_weekly_usage(db: Session = Depends(get_db)):
+def get_weekly_usage():
     from datetime import timedelta as td
-    seven_days_ago = datetime.utcnow() - td(days=7)
-    logs = db.query(ApiUsageLog).filter(ApiUsageLog.created_at >= seven_days_ago).all()
-    total_cost = sum(float(l.cost or 0) for l in logs)
+    cfg = _load_cf_config()
+    if not all([cfg.get("cf_account_id"), cfg.get("cf_gateway_id"), cfg.get("cf_api_token")]):
+        return {"total_cost": "$0.00", "tokens_in": 0, "tokens_out": 0, "requests": 0, "cached": 0, "daily": {}, "source": "not_configured"}
+    seven_days_ago = (datetime.utcnow() - td(days=7)).date().isoformat()
+    logs = _get_logs(start_date=seven_days_ago)
+    total_in, total_out, total_cost, _, daily, cached_count = _process_logs(logs)
     return {
-        "total_cost": f"${total_cost:.2f}",
-        "sessions": len(logs),
+        "total_cost": f"${total_cost:.4f}",
+        "tokens_in": total_in,
+        "tokens_out": total_out,
+        "requests": len(logs),
+        "cached": cached_count,
+        "daily": daily,
+        "source": "cloudflare_ai_gateway",
     }
+
+@app.get("/api/usage/config")
+def get_usage_config():
+    """Check if AI Gateway is configured."""
+    cfg = _load_cf_config()
+    has_config = all([cfg.get("cf_account_id"), cfg.get("cf_gateway_id"), cfg.get("cf_api_token")])
+    return {"configured": has_config, "gateway_id": cfg.get("cf_gateway_id", "")}
+
+@app.post("/api/usage/config")
+def save_usage_config(body: dict):
+    """Save AI Gateway config."""
+    config_path = Path(__file__).parent / "config.json"
+    existing = {}
+    if config_path.exists():
+        with open(config_path) as f:
+            existing = json.load(f)
+    existing["cf_account_id"] = body.get("cf_account_id", existing.get("cf_account_id", ""))
+    existing["cf_gateway_id"] = body.get("cf_gateway_id", existing.get("cf_gateway_id", ""))
+    existing["cf_api_token"] = body.get("cf_api_token", existing.get("cf_api_token", ""))
+    with open(config_path, "w") as f:
+        json.dump(existing, f, indent=2)
+    return {"ok": True}
 
 # ============ V2 — Momentum Score ============
 
