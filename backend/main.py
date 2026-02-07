@@ -16,7 +16,8 @@ from database import init_db, get_db, SessionLocal
 from models import (
     Agent, Task, Comment, Deliverable, ChatMessage, Announcement, ActivityLog,
     TaskStatus, Priority, AgentRole, AgentStatus,
-    RecurringTask, RecurringTaskRun, TaskActivity
+    RecurringTask, RecurringTaskRun, TaskActivity,
+    Document, IntelligenceReport, Client, WeeklyRecap, ApiUsageLog
 )
 
 app = FastAPI(title="ClawController API", version="2.0.0")
@@ -2362,6 +2363,245 @@ def delete_agent(agent_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to write config: {str(e)}")
     
     return {"ok": True, "message": f"Agent '{agent_id}' removed (workspace preserved)"}
+
+
+# ============ V2 — Documents (DocuDigest) ============
+
+class DocumentCreate(BaseModel):
+    title: str
+    tags: Optional[List[str]] = []
+
+@app.get("/api/documents")
+def list_documents(db: Session = Depends(get_db)):
+    docs = db.query(Document).order_by(Document.created_at.desc()).all()
+    return [{
+        "id": d.id,
+        "title": d.title,
+        "file_size": d.file_size,
+        "tags": json.loads(d.tags) if d.tags else [],
+        "status": d.status,
+        "summary": d.summary,
+        "created_at": d.created_at.isoformat(),
+        "processed_at": d.processed_at.isoformat() if d.processed_at else None,
+    } for d in docs]
+
+@app.post("/api/documents")
+async def create_document(doc_data: DocumentCreate, db: Session = Depends(get_db)):
+    doc = Document(
+        title=doc_data.title,
+        tags=json.dumps(doc_data.tags) if doc_data.tags else "[]",
+        status="pending",
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return {"id": doc.id, "status": doc.status}
+
+@app.get("/api/documents/{doc_id}")
+def get_document(doc_id: str, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "content_text": doc.content_text,
+        "summary": doc.summary,
+        "tags": json.loads(doc.tags) if doc.tags else [],
+        "status": doc.status,
+        "file_size": doc.file_size,
+        "created_at": doc.created_at.isoformat(),
+        "processed_at": doc.processed_at.isoformat() if doc.processed_at else None,
+    }
+
+# ============ V2 — Intelligence Reports ============
+
+class IntelligenceReportCreate(BaseModel):
+    title: str
+    source: Optional[str] = None
+    summary: Optional[str] = None
+    snapshot: Optional[str] = None
+    relevance_score: int = 0
+    source_url: Optional[str] = None
+
+@app.get("/api/intelligence")
+def list_intelligence_reports(db: Session = Depends(get_db)):
+    reports = db.query(IntelligenceReport).order_by(IntelligenceReport.created_at.desc()).all()
+    return [{
+        "id": r.id,
+        "title": r.title,
+        "source": r.source,
+        "summary": r.summary,
+        "snapshot": r.snapshot,
+        "relevance_score": r.relevance_score,
+        "source_url": r.source_url,
+        "created_at": r.created_at.isoformat(),
+    } for r in reports]
+
+@app.post("/api/intelligence")
+async def create_intelligence_report(data: IntelligenceReportCreate, db: Session = Depends(get_db)):
+    report = IntelligenceReport(
+        title=data.title,
+        source=data.source,
+        summary=data.summary,
+        snapshot=data.snapshot,
+        relevance_score=data.relevance_score,
+        source_url=data.source_url,
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return {"id": report.id}
+
+# ============ V2 — Clients ============
+
+class ClientCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    context: Optional[str] = None
+
+class ClientUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    context: Optional[str] = None
+    is_active: Optional[bool] = None
+
+@app.get("/api/clients")
+def list_clients(db: Session = Depends(get_db)):
+    clients = db.query(Client).order_by(Client.created_at.desc()).all()
+    return [{
+        "id": c.id,
+        "name": c.name,
+        "description": c.description,
+        "context": c.context,
+        "channels": json.loads(c.channels) if c.channels else [],
+        "is_active": c.is_active,
+        "created_at": c.created_at.isoformat(),
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    } for c in clients]
+
+@app.post("/api/clients")
+async def create_client(data: ClientCreate, db: Session = Depends(get_db)):
+    client = Client(
+        name=data.name,
+        description=data.description,
+        context=data.context,
+    )
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return {"id": client.id}
+
+@app.patch("/api/clients/{client_id}")
+async def update_client(client_id: str, data: ClientUpdate, db: Session = Depends(get_db)):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if data.name is not None:
+        client.name = data.name
+    if data.description is not None:
+        client.description = data.description
+    if data.context is not None:
+        client.context = data.context
+    if data.is_active is not None:
+        client.is_active = data.is_active
+    db.commit()
+    return {"ok": True}
+
+@app.delete("/api/clients/{client_id}")
+async def delete_client(client_id: str, db: Session = Depends(get_db)):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    db.delete(client)
+    db.commit()
+    return {"ok": True}
+
+# ============ V2 — Weekly Recaps ============
+
+@app.get("/api/recaps")
+def list_recaps(db: Session = Depends(get_db)):
+    recaps = db.query(WeeklyRecap).order_by(WeeklyRecap.week_start.desc()).all()
+    return [{
+        "id": r.id,
+        "title": r.title,
+        "week_start": r.week_start.isoformat(),
+        "week_end": r.week_end.isoformat(),
+        "content": r.content,
+        "tasks_completed": r.tasks_completed,
+        "commits_count": r.commits_count,
+        "total_spend": r.total_spend,
+        "created_at": r.created_at.isoformat(),
+    } for r in recaps]
+
+# ============ V2 — API Usage ============
+
+@app.get("/api/usage/today")
+def get_today_usage(db: Session = Depends(get_db)):
+    today = datetime.utcnow().date()
+    logs = db.query(ApiUsageLog).filter(
+        ApiUsageLog.created_at >= datetime(today.year, today.month, today.day)
+    ).all()
+    total_cost = sum(float(l.cost or 0) for l in logs)
+    total_tokens_in = sum(l.tokens_in or 0 for l in logs)
+    total_tokens_out = sum(l.tokens_out or 0 for l in logs)
+    return {
+        "total_cost": f"${total_cost:.2f}",
+        "tokens_in": total_tokens_in,
+        "tokens_out": total_tokens_out,
+        "sessions": len(logs),
+    }
+
+@app.get("/api/usage/weekly")
+def get_weekly_usage(db: Session = Depends(get_db)):
+    from datetime import timedelta as td
+    seven_days_ago = datetime.utcnow() - td(days=7)
+    logs = db.query(ApiUsageLog).filter(ApiUsageLog.created_at >= seven_days_ago).all()
+    total_cost = sum(float(l.cost or 0) for l in logs)
+    return {
+        "total_cost": f"${total_cost:.2f}",
+        "sessions": len(logs),
+    }
+
+# ============ V2 — Momentum Score ============
+
+@app.get("/api/tasks/momentum")
+def get_tasks_with_momentum(db: Session = Depends(get_db)):
+    """Get queued tasks sorted by momentum score."""
+    queued = db.query(Task).filter(Task.status.in_([TaskStatus.INBOX, TaskStatus.ASSIGNED])).all()
+    done = db.query(Task).filter(Task.status == TaskStatus.DONE).order_by(Task.updated_at.desc()).limit(10).all()
+    done_tags = set()
+    for t in done:
+        if t.tags:
+            done_tags.update(json.loads(t.tags))
+
+    result = []
+    for task in queued:
+        tags = json.loads(task.tags) if task.tags else []
+        # Skill adjacency (40%)
+        overlap = len(set(tags) & done_tags)
+        adjacency = min(40, (overlap / max(len(tags), 1)) * 40) if tags else 0
+        # Capability match (30%) — always assume capable
+        capability = 30
+        # Priority (20%)
+        priority_score = 20 if task.priority == Priority.URGENT else 10
+        # Queue age (10%)
+        age_days = (datetime.utcnow() - task.created_at).days if task.created_at else 0
+        age_score = min(10, age_days * 2)
+
+        momentum = min(100, round(adjacency + capability + priority_score + age_score))
+        result.append({
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "tags": tags,
+            "priority": task.priority.value,
+            "momentum": momentum,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+        })
+
+    result.sort(key=lambda x: x["momentum"], reverse=True)
+    return result
 
 
 if __name__ == "__main__":

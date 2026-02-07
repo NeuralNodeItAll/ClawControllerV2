@@ -157,11 +157,86 @@ class RecurringTaskRun(Base):
 class TaskActivity(Base):
     """Task-specific activity log for tracking agent work on individual tasks."""
     __tablename__ = "task_activity"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
     task_id = Column(String, ForeignKey("tasks.id"), nullable=False)
     agent_id = Column(String, ForeignKey("agents.id"), nullable=True)
     message = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    
+
     task = relationship("Task", backref="activity_entries")
+
+
+# ============ V2 Models ============
+
+class Document(Base):
+    """DocuDigest — uploaded and processed documents."""
+    __tablename__ = "documents"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    title = Column(String(300), nullable=False)
+    file_path = Column(String(500), nullable=True)
+    file_size = Column(Integer, default=0)
+    content_text = Column(Text, nullable=True)  # Extracted text
+    summary = Column(Text, nullable=True)  # AI-generated summary
+    tags = Column(String(500))  # JSON array as string
+    status = Column(String(50), default="pending")  # pending, processing, ready, error
+    created_at = Column(DateTime, default=datetime.utcnow)
+    processed_at = Column(DateTime, nullable=True)
+
+
+class IntelligenceReport(Base):
+    """Twitter/X Scout intelligence reports."""
+    __tablename__ = "intelligence_reports"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    title = Column(String(300), nullable=False)
+    source = Column(String(200))  # @handle or URL
+    summary = Column(Text)
+    snapshot = Column(Text)  # Personalized analysis
+    relevance_score = Column(Integer, default=0)  # 0-100
+    source_url = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Client(Base):
+    """Client management."""
+    __tablename__ = "clients"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    context = Column(Text)  # Business context / notes
+    channels = Column(String(500))  # JSON array of connected channels
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WeeklyRecap(Base):
+    """Auto-generated weekly summaries."""
+    __tablename__ = "weekly_recaps"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    title = Column(String(200), nullable=False)
+    week_start = Column(DateTime, nullable=False)
+    week_end = Column(DateTime, nullable=False)
+    content = Column(Text)  # Markdown content
+    tasks_completed = Column(Integer, default=0)
+    commits_count = Column(Integer, default=0)
+    total_spend = Column(String(20), default="$0.00")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ApiUsageLog(Base):
+    """API usage and spend tracking."""
+    __tablename__ = "api_usage_log"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    model = Column(String(100))
+    tokens_in = Column(Integer, default=0)
+    tokens_out = Column(Integer, default=0)
+    cost = Column(String(20), default="0.00")  # Dollar amount as string
+    agent_id = Column(String, nullable=True)
+    task_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

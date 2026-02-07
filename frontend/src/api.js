@@ -315,4 +315,74 @@ export async function deleteAgentConfig(agentId) {
   })
 }
 
+// ============ V2 — Documents ============
+export async function fetchDocuments() {
+  return fetchAPI('/api/documents')
+}
+
+export async function createDocument(data) {
+  return fetchAPI('/api/documents', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function fetchDocument(docId) {
+  return fetchAPI(`/api/documents/${docId}`)
+}
+
+// ============ V2 — Intelligence ============
+export async function fetchIntelligenceReports() {
+  return fetchAPI('/api/intelligence')
+}
+
+export async function createIntelligenceReport(data) {
+  return fetchAPI('/api/intelligence', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+// ============ V2 — Clients ============
+export async function fetchClients() {
+  return fetchAPI('/api/clients')
+}
+
+export async function createClient(data) {
+  return fetchAPI('/api/clients', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateClient(clientId, data) {
+  return fetchAPI(`/api/clients/${clientId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteClient(clientId) {
+  return fetchAPI(`/api/clients/${clientId}`, { method: 'DELETE' })
+}
+
+// ============ V2 — Weekly Recaps ============
+export async function fetchRecaps() {
+  return fetchAPI('/api/recaps')
+}
+
+// ============ V2 — API Usage ============
+export async function fetchTodayUsage() {
+  return fetchAPI('/api/usage/today')
+}
+
+export async function fetchWeeklyUsage() {
+  return fetchAPI('/api/usage/weekly')
+}
+
+// ============ V2 — Momentum ============
+export async function fetchTasksMomentum() {
+  return fetchAPI('/api/tasks/momentum')
+}
+
 export { API_BASE, WS_URL }

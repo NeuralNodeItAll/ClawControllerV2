@@ -1,25 +1,26 @@
 import { useEffect } from 'react'
-import './App.css'
-import clawLogo from './assets/clawcontroller-logo.jpg'
-import AgentManagement from './components/AgentManagement'
-import AgentSidebar from './components/AgentSidebar'
-import AnnouncementModal from './components/AnnouncementModal'
-import ChatWidget from './components/ChatWidget'
-import Header from './components/Header'
-import KanbanBoard from './components/KanbanBoard'
-import LiveFeed from './components/LiveFeed'
-import NewTaskModal from './components/NewTaskModal'
-import RecurringTasksPanel from './components/RecurringTasksPanel'
-import TaskModal from './components/TaskModal'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useMissionStore } from './store/useMissionStore'
+import AppLayout from './components/AppLayout'
+import Dashboard from './pages/Dashboard'
+import Workshop from './pages/Workshop'
+import Journal from './pages/Journal'
+import Documents from './pages/Documents'
+import Agents from './pages/Agents'
+import Intelligence from './pages/Intelligence'
+import WeeklyRecaps from './pages/WeeklyRecaps'
+import Clients from './pages/Clients'
+import CronJobs from './pages/CronJobs'
+import ApiUsage from './pages/ApiUsage'
+import './App.css'
 
 function LoadingScreen() {
   return (
-    <div className="loading-screen">
-      <div className="loading-content">
-        <img src={clawLogo} alt="ClawController" className="loading-logo" />
-        <h2>ClawController</h2>
-        <p>Initializing systems...</p>
+    <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-page)' }}>
+      <div className="text-center">
+        <div className="w-10 h-10 loading-spinner mx-auto mb-4" />
+        <h2 className="text-lg font-semibold text-white mb-1">Mission Control</h2>
+        <p className="text-sm text-[var(--text-muted)]">Initializing systems...</p>
       </div>
     </div>
   )
@@ -27,15 +28,18 @@ function LoadingScreen() {
 
 function ErrorScreen({ error, onRetry }) {
   return (
-    <div className="error-screen">
-      <div className="error-content">
-        <div className="error-icon">⚠️</div>
-        <h2>Connection Failed</h2>
-        <p>{error}</p>
-        <button className="retry-button" onClick={onRetry}>
+    <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-page)' }}>
+      <div className="text-center max-w-sm">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h2 className="text-lg font-semibold text-white mb-2">Connection Failed</h2>
+        <p className="text-sm text-[var(--text-secondary)] mb-4">{error}</p>
+        <button
+          onClick={onRetry}
+          className="px-4 py-2 text-sm rounded-lg bg-[var(--accent-blue)] text-white font-medium hover:brightness-110"
+        >
           Retry Connection
         </button>
-        <p className="error-hint">
+        <p className="text-xs text-[var(--text-muted)] mt-3">
           Make sure the backend is running at http://localhost:8000
         </p>
       </div>
@@ -44,61 +48,48 @@ function ErrorScreen({ error, onRetry }) {
 }
 
 function App() {
-  const initialize = useMissionStore((state) => state.initialize)
-  const connectWebSocket = useMissionStore((state) => state.connectWebSocket)
-  const disconnectWebSocket = useMissionStore((state) => state.disconnectWebSocket)
-  const refreshAgents = useMissionStore((state) => state.refreshAgents)
-  const isLoading = useMissionStore((state) => state.isLoading)
-  const isInitialized = useMissionStore((state) => state.isInitialized)
-  const error = useMissionStore((state) => state.error)
-  const wsConnected = useMissionStore((state) => state.wsConnected)
+  const initialize = useMissionStore((s) => s.initialize)
+  const connectWebSocket = useMissionStore((s) => s.connectWebSocket)
+  const disconnectWebSocket = useMissionStore((s) => s.disconnectWebSocket)
+  const refreshAgents = useMissionStore((s) => s.refreshAgents)
+  const isLoading = useMissionStore((s) => s.isLoading)
+  const isInitialized = useMissionStore((s) => s.isInitialized)
+  const error = useMissionStore((s) => s.error)
 
   useEffect(() => {
-    // Initialize data on mount
     initialize()
-    
-    // Connect WebSocket
     connectWebSocket()
-    
-    // Refresh agent status every 30 seconds for real-time updates
+
     const agentRefreshInterval = setInterval(() => {
       refreshAgents()
     }, 30000)
-    
-    // Cleanup on unmount
+
     return () => {
       disconnectWebSocket()
       clearInterval(agentRefreshInterval)
     }
   }, [initialize, connectWebSocket, disconnectWebSocket, refreshAgents])
 
-  // Show loading screen while initializing
-  if (isLoading && !isInitialized) {
-    return <LoadingScreen />
-  }
-
-  // Show error screen if initialization failed
-  if (error && !isInitialized) {
-    return <ErrorScreen error={error} onRetry={initialize} />
-  }
+  if (isLoading && !isInitialized) return <LoadingScreen />
+  if (error && !isInitialized) return <ErrorScreen error={error} onRetry={initialize} />
 
   return (
-    <div className="app">
-      <Header />
-      <main className="main">
-        <AgentSidebar />
-        <KanbanBoard />
-        <div className="right-panel">
-          <LiveFeed />
-        </div>
-      </main>
-      <TaskModal />
-      <AnnouncementModal />
-      <NewTaskModal />
-      <RecurringTasksPanel />
-      <AgentManagement />
-      <ChatWidget />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/workshop" element={<Workshop />} />
+          <Route path="/journal" element={<Journal />} />
+          <Route path="/documents" element={<Documents />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/intelligence" element={<Intelligence />} />
+          <Route path="/weekly-recaps" element={<WeeklyRecaps />} />
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/cron-jobs" element={<CronJobs />} />
+          <Route path="/api-usage" element={<ApiUsage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
