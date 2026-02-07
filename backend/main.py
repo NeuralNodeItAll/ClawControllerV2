@@ -1656,7 +1656,7 @@ def fetch_openclaw_crons():
         try:
             url = f"{api_url.rstrip('/')}/api/chat/crons"
             headers = {"Authorization": f"Bearer {gateway_token}"}
-            resp = requests.get(url, headers=headers, timeout=15)
+            resp = requests.get(url, headers=headers, timeout=8)
             if resp.status_code == 200:
                 data = resp.json()
                 jobs = data.get("jobs", [])
@@ -1788,8 +1788,16 @@ def sync_openclaw_crons(db: Session = Depends(get_db)):
         db.refresh(new_rt)
         synced.append({"id": new_rt.id, "title": title, "action": "created"})
 
-    # Push back to openclaw for full bidirectional sync
-    push_cron_to_openclaw(db)
+    # Push back to openclaw in background thread so sync response returns quickly
+    import threading
+    def _bg_push():
+        try:
+            bg_db = SessionLocal()
+            push_cron_to_openclaw(bg_db)
+            bg_db.close()
+        except Exception as e:
+            print(f"Background push error: {e}")
+    threading.Thread(target=_bg_push, daemon=True).start()
 
     return {"synced": synced, "total": len(synced)}
 
@@ -1857,33 +1865,33 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
             # Not matched locally and not explicitly deleted — keep it (new remote job)
             updated_jobs.append(job)
 
-    # 3. Create new remote jobs for local openclaw tasks with no remote match
-    for ocid, rt in local_by_ocid.items():
-        if ocid in matched_ocids:
-            continue
-        # This is a local task that has an ocid but no matching remote job
-        # (it was deleted remotely — don't re-create it)
-        # Only create new jobs for local tasks that were locally created with openclaw tags
-        # but have no ocid yet — those won't be in local_by_ocid since they lack ocid tags
-
-    # Check for local openclaw tasks that need new remote jobs (no ocid tag yet)
+    # 3. Re-create remote jobs for any local openclaw tasks not matched above
+    #    This covers both tasks with existing ocids (missing from remote) and
+    #    new tasks without ocids yet.
     for rt in local_tasks:
         try:
             tags = json.loads(rt.tags) if rt.tags else []
         except (json.JSONDecodeError, TypeError):
             tags = []
 
-        has_ocid = any(t.startswith("ocid:") for t in tags)
-        if has_ocid:
-            continue  # Already handled above
-
         if "openclaw" not in tags:
-            continue  # Not an openclaw task
+            continue
 
-        # Create a new remote job
-        new_job_id = str(uuid.uuid4())[:8]
+        # Check if this task was already matched to a remote job
+        existing_ocid = None
+        for tag in tags:
+            if tag.startswith("ocid:"):
+                existing_ocid = tag[5:]
+                break
+
+        if existing_ocid and existing_ocid in matched_ocids:
+            continue  # Already updated above
+
+        # Use existing ocid or generate a new one
+        job_id = existing_ocid or str(uuid.uuid4())[:8]
+
         new_job = {
-            "id": new_job_id,
+            "id": job_id,
             "name": rt.title,
             "enabled": rt.is_active,
             "schedule": {
@@ -1901,10 +1909,11 @@ def _push_to_single_agent(api_url: str, gateway_token: str, agent_id: str, local
         }
         updated_jobs.append(new_job)
 
-        # Tag the local task with the new ocid
-        tags.append(f"ocid:{new_job_id}")
-        rt.tags = json.dumps(tags)
-        db.commit()
+        # Tag the local task with the ocid if it didn't have one
+        if not existing_ocid:
+            tags.append(f"ocid:{job_id}")
+            rt.tags = json.dumps(tags)
+            db.commit()
 
     # 4. Write back to remote
     put_body = {"version": version, "jobs": updated_jobs}
