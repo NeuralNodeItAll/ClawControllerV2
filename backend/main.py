@@ -1656,7 +1656,7 @@ def fetch_openclaw_crons():
         try:
             url = f"{api_url.rstrip('/')}/api/chat/crons"
             headers = {"Authorization": f"Bearer {gateway_token}"}
-            resp = requests.get(url, headers=headers, timeout=8)
+            resp = requests.get(url, headers=headers, timeout=90)
             if resp.status_code == 200:
                 data = resp.json()
                 jobs = data.get("jobs", [])
